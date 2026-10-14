@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1F4D3A"/>
+  <g transform="translate(46,92) scale(3.4)">
+    <g fill="#FFFFFF"><circle cx="30" cy="62" r="13"/><circle cx="46" cy="54" r="15"/><circle cx="62" cy="58" r="14"/><circle cx="38" cy="72" r="13"/><circle cx="56" cy="72" r="13"/><circle cx="70" cy="68" r="11"/></g>
+    <rect x="34" y="80" width="5" height="14" rx="2" fill="#0F2A1F"/><rect x="58" y="80" width="5" height="14" rx="2" fill="#0F2A1F"/>
+    <ellipse cx="79" cy="56" rx="10" ry="12" fill="#0F2A1F"/><ellipse cx="72" cy="47" rx="6" ry="3" fill="#0F2A1F" transform="rotate(-25 72 47)"/>
+    <circle cx="82" cy="54" r="2" fill="#fff"/>
+    <rect x="76" y="2" width="38" height="25" rx="10" fill="#D69A2D"/><path d="M85 26 L80 36 L94 26 Z" fill="#D69A2D"/>
+    <text x="95" y="20" text-anchor="middle" font-size="13" font-weight="700" fill="#252A27" font-family="sans-serif">Mê!</text>
+  </g>
+</svg>

@@ -1,0 +1,17 @@
+{
+  "name": "Skaap se Praat",
+  "short_name": "Skaap se Praat",
+  "description": "Kuddebestuur vir die plaas – werk ook sonder sein.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F2EAD8",
+  "theme_color": "#1F4D3A",
+  "lang": "af",
+  "icons": [
+    { "src": "ikoon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "ikoon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "ikoon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
