@@ -104,6 +104,21 @@ function demoData() {
   ry('Aksies', [dt(8, 1), dt(9, 30), 'Lamseisoen']);
 
   r = 2;
+  ry('Seisoene', ['Lam', 'Sep', dt(8, 20), dt(11, 4), '']);
+  ry('Seisoene', ['Lam', 'Maart', dt(2, 20), dt(5, 6), '']);
+  ry('Seisoene', ['Teel', 'Okt', dt(10, 15), dt(12, 1), '']);
+  ry('Seisoene', ['Teel', 'April', dt(4, 15), dt(5, 31), '']);
+  r = 2;
+  ry('Seisoen Notas', [dt(5, 10), 'Maart ' + String(jaar).slice(-2), 'Goeie seisoen, min verliese. Een moeilike geboorte by 105.']);
+  r = 2;
+  ry('Siektes', ['Bloednier', 'Skielike dood, krampe, kop agteroor, diarree', 'Lente; na reën as die veld vinnig groei', 'Glanvac 3, Multivax P (skraag na 4-6 weke)', 'Veral by vet lammers']);
+  ry('Siektes', ['Bloutong', 'Koors, geswelde kop en lippe, blou tong, mank', 'Laat somer en herfs (muggies)', 'Bloutong A, B en C (Onderstepoort)', 'Nie op dragtige ooie in eerste helfte nie']);
+  r = 2;
+  ry('Skenkings', [dt(6, 15), 304, 'Kerk basaar', 'Vir die basaar', '']);
+  // Siek groep
+  r = d['Siek diere'].rye.length + 2;
+  ry('Siek diere', [dt(m, 10), '', 'Gespeende Hammel Lam', 'Hoes en loopneus', 'Uitgesonder in kampie', 'Onder behandeling', '', 'Terramycin LA', 3]);
+  r = 2;
   ry('Ram', ['Oktober Teel Seisoen', dt(10, 15), dt(11, 30)]);
   ry('Ram', ['April Teel Seisoen', dt(4, 15), dt(5, 31)]);
   return d;

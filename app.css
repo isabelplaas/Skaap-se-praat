@@ -40,6 +40,13 @@ svg.ti { width: 1em; height: 1em; display: inline-block; vertical-align: -0.15em
 .soek { margin-top: 14px; background: #fff; border-radius: 12px; display: flex; align-items: center; padding: 4px 6px 4px 12px; gap: 8px; color: var(--teks-2); }
 .soek input { flex: 1; border: 0; outline: none; padding: 10px 0; font-size: 17px; background: transparent; color: var(--teks); min-width: 0; }
 .soek .ti { font-size: 20px; }
+.kop-soek-ry { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+.soek.klein { margin-top: 0; flex: 0 0 auto; width: 168px; padding: 3px 4px 3px 10px; }
+.soek.klein input { font-size: 17px; padding: 8px 0; width: 4.5em; }
+.soek.klein .knop-klein { padding: 6px 10px; }
+.seisoen-pil { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.35); border-radius: 99px; padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.seisoen-pil.teel { background: rgba(214,154,45,.28); border-color: rgba(240,200,119,.6); cursor: default; }
+.seisoen-pil .ti { font-size: 16px; }
 
 /* Inhoud */
 .inhoud { padding-block: 14px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
@@ -54,6 +61,27 @@ svg.ti { width: 1em; height: 1em; display: inline-block; vertical-align: -0.15em
 .stat .etiket { font-size: 12px; color: var(--teks-2); }
 .stat .getal { font-size: 26px; font-weight: 600; margin: 2px 0; }
 .stat .klein { font-size: 12px; }
+.rooster.drie { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.rooster.drie .stat .getal { font-size: 22px; }
+.stat.breed { padding: 0; overflow: hidden; }
+.stat.breed .bo-ry { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: 0; padding: 12px 14px; text-align: left; cursor: pointer; border-bottom: 1px solid var(--lyn); }
+.stat.breed .bo-ry .getal { font-size: 34px; min-width: 56px; }
+.stat.breed .regs { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 13px; color: var(--teks-2); gap: 1px; }
+.stat.breed .bo-ry .ti-chevron-right { color: #B8BCB9; }
+.groepe { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.groep-ry { display: flex; align-items: center; gap: 8px; background: none; border: 0; border-bottom: 1px solid var(--lyn); padding: 10px 12px 10px 14px; text-align: left; font-size: 14px; cursor: pointer; }
+.groep-ry:nth-child(odd) { border-right: 1px solid var(--lyn); }
+.groep-ry span { flex: 1; min-width: 0; }
+.groep-ry b { font-size: 16px; color: var(--groen); }
+.groep-ry .ti-chevron-right { color: #B8BCB9; font-size: 14px; }
+.groep-ry.leeg-groep { color: var(--teks-2); }
+.groep-ry.leeg-groep b { color: #B8BCB9; }
+.titel.nou { font-size: 15px; color: var(--groen); }
+.lys.nou { border: 2px solid var(--groen-2); }
+.merk { font-size: 24px; color: #B8BCB9; display: flex; }
+.merk.aan { color: var(--groen-2); }
+.lys-ry.gedoen { cursor: default; background: #F6FAF7; }
+.knop:disabled { opacity: .45; }
 
 .aksie { background: var(--kaart); border: 0; border-radius: var(--radius); padding: 12px; display: flex; align-items: center; gap: 10px; text-align: left; min-height: 62px; cursor: pointer; }
 .aksie:active { transform: scale(0.98); }

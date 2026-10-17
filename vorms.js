@@ -50,7 +50,8 @@ function produkteVir(a, program) {
 
 const VORM_TITELS = { byvoeg: 'Skaap byvoeg', lam: 'Nuwe lam', spuit: 'Spuit', siek: 'Siek skaap', weeg: 'Weeg', nota: 'Nota',
   uit: 'Dood of verkoop', verkoop: 'Verkoop', skuif: 'Skuif na ander groep', speen: 'Speen lam', gesond: 'Merk gesond',
-  groepskuif: 'Skuif \'n groep', bestelling: 'Nuwe bestelling', bestelling_oop: 'Bestelling' };
+  groepskuif: 'Skuif \'n groep', bestelling: 'Nuwe bestelling', bestelling_oop: 'Bestelling',
+  produk: 'Produk byvoeg', siekte: 'Siekte-inligting', seisoen_nota: 'Nota oor die seisoen', skenking: 'Skenking' };
 
 // Die gewone volgende groep vir elke groep.
 const VOLGENDE_GROEP = { 'Ooi Lam by MA': 'Gespeende Ooi Lam', 'Hammel Lam by MA': 'Gespeende Hammel Lam',
@@ -62,6 +63,19 @@ function geslagVirGroep(g) {
   return '';
 }
 function lede(a, groep) { return aktieweDiere(a).filter(function (d) { return d.groep === groep; }); }
+
+// Lamseisoen-name rondom vandag (en die huidige keuse).
+function lamSeisoenOpsies(a, huidig) {
+  const j = Number(vandag().slice(0, 4));
+  const lys = [];
+  a.seisoene.filter(function (x) { return x.tipe === 'Lam'; }).forEach(function (def) {
+    [j - 1, j].forEach(function (y) { lys.push(seisoenIn(def, y)); });
+  });
+  lys.sort(function (x, y) { return y.begin.localeCompare(x.begin); });
+  const name = lys.map(function (x) { return x.naam; });
+  if (huidig && name.indexOf(huidig) < 0) name.unshift(huidig);
+  return name;
+}
 
 const Vorms = {
   begin(tipe, n) {
@@ -81,6 +95,14 @@ const Vorms = {
       case 'skuif': return Object.assign(v, { nommer: d ? d.n : '', groep: d ? d.groep : '', rede: '', gereed: d && d.gereed ? d.gereed : 'Nie gereed' });
       case 'bestelling': return Object.assign(v, { naam: '', kontak: '', wanneer: '', aantal: '', wat: '', nota: '' });
       case 'groepskuif': return Object.assign(v, { van: '', na: '', gekies: [], gereed: 'Nie gereed' });
+      case 'produk': return Object.assign(v, { program: n || 'Feb Spuit Program', produk: '', beskrywing: '', onttrekking: '', ouderdom: '', groepe: [] });
+      case 'siekte': {
+        const o = n ? a.siektes.find(function (x) { return x._r === Number(n); }) : null;
+        return Object.assign(v, { ry: o ? o._r : 0, siekte: o ? o.Siekte : '', simptome: o ? o.Simptome || '' : '', seisoen: o ? o.Seisoen || '' : '',
+          spuitstof: o ? o['Spuitstof voorstelle'] || '' : '', nota: o ? o.Nota || '' : '' });
+      }
+      case 'seisoen_nota': return Object.assign(v, { seisoen: n || '', nota: '' });
+      case 'skenking': return Object.assign(v, { nommer: d ? d.n : '', aanWie: '', rede: '', nota: '' });
       case 'speen': return Object.assign(v, { nommer: d ? d.n : '',
         geslag: d && d.geslag ? d.geslag : 'Ooi',
         groep: d && d.geslag === 'Hammel' ? 'Gespeende Hammel Lam' : 'Gespeende Ooi Lam', gewig: '' });
@@ -108,6 +130,7 @@ const Vorms = {
   // Velde wat ander velde beïnvloed (ook vanaf keuselyste).
   verander(p, veld, w) {
     const v = p.vorm;
+    if (p.tipe === 'lam' && veld === 'datum') v.seisoen = seisoenVir(w) || v.seisoen;
     if (p.tipe === 'groepskuif' && veld === 'van') {
       v.na = VOLGENDE_GROEP[w] || '';
       v.gekies = lede(Afgelei.get(), w).map(function (d) { return d.n; });
@@ -204,6 +227,26 @@ const Vorms = {
       case 'speen':
         if (v.gewig !== '' && !(syfer(v.gewig) > 0)) return 'Gewig moet \'n getal wees.';
         return '';
+      case 'produk': {
+        if (!v.program) return 'Kies die program.';
+        const naam = v.produk.trim();
+        if (!naam) return 'Tik die produk se naam in.';
+        if (a.program.some(function (o) { return o.Program === v.program && String(o.Produk).trim().toLowerCase() === naam.toLowerCase(); })) return naam + ' is reeds in die ' + v.program + '.';
+        if (v.onttrekking !== '' && isNaN(syfer(v.onttrekking))) return 'Onttrekking moet \'n getal (dae) wees.';
+        for (let i = 0; i < v.groepe.length; i++) { const x = v['d_' + GROEPE.indexOf(v.groepe[i])]; if (x !== undefined && x !== '' && isNaN(syfer(x))) return 'Dosis vir ' + v.groepe[i] + ' moet \'n getal wees.'; }
+        return '';
+      }
+      case 'siekte':
+        if (!v.siekte.trim()) return 'Tik die siekte se naam in.';
+        return '';
+      case 'seisoen_nota':
+        if (!v.nota.trim()) return 'Skryf die nota.';
+        return '';
+      case 'skenking':
+        if (!bestaan(v.nommer)) return 'Kies \'n dier wat in die kudde is.';
+        if (a.diere[sleutelVan(v.nommer)].uit) return 'Hierdie dier is reeds as ' + a.diere[sleutelVan(v.nommer)].uit.toLowerCase() + ' gemerk.';
+        if (!v.aanWie.trim()) return 'Aan wie is die skaap geskenk?';
+        return '';
     }
     return '';
   },
@@ -264,6 +307,12 @@ const Vorms = {
         App.terug();
         return;
       case 'uit': case 'verkoop':
+        if (v.tipe === 'Geskenk') {
+          voegBewerkingBy('skenking', { datum: v.datum, nommer: n, aanWie: v.aanWie.trim(), rede: (v.rede || '').trim(), nota: '' });
+          boodskap('Totsiens! ' + n + ' gaan na ' + (v.aanWie.trim() || 'sy nuwe huis') + '.');
+          App.terug();
+          return;
+        }
         if (v.tipe === 'Verkoop') {
           voegBewerkingBy('verkoop', { datum: v.datum, nommer: n, aanWie: v.aanWie, prys: syfer(v.prys), gewig: syfer(v.gewig), betaal: !!v.betaal });
           boodskap('Totsiens! ' + n + ' is as verkoop aangeteken.');
@@ -316,10 +365,34 @@ const Vorms = {
       case 'gesond': {
         const o = a.siek.find(function (x) { return x._r === v.ry; });
         voegBewerkingBy('siek_status', { ry: v.ry, nommer: o ? o.Nommer : v.nommer, groep: o ? o.Groep : '', status: 'Gesond', datum: v.datum });
-        boodskap('Hoera, ek voel weer beter!');
+        boodskap(o && !sleutelVan(o.Nommer) ? 'Hoera, die hele ' + (o.Groep || 'groep') + ' voel weer beter!' : 'Hoera, ek voel weer beter!');
         App.terug();
         return;
       }
+      case 'produk': {
+        const dosisse = {};
+        v.groepe.forEach(function (g) { const x = v['d_' + GROEPE.indexOf(g)]; dosisse[g] = x === undefined || x === '' ? '' : syfer(x); });
+        voegBewerkingBy('produk', { program: v.program, produk: v.produk.trim(), beskrywing: v.beskrywing.trim(),
+          onttrekking: v.onttrekking === '' ? '' : syfer(v.onttrekking), ouderdom: v.ouderdom.trim(), groepe: v.groepe.slice(), dosisse: dosisse });
+        boodskap(v.produk.trim() + ' is by die ' + v.program + ' gevoeg.');
+        App.terug();
+        return;
+      }
+      case 'siekte':
+        voegBewerkingBy('siekte', { ry: v.ry || 0, siekte: v.siekte.trim(), simptome: v.simptome.trim(), seisoen: v.seisoen.trim(), spuitstof: v.spuitstof.trim(), nota: v.nota.trim() });
+        boodskap(v.ry ? 'Siekte-inligting opgedateer.' : v.siekte.trim() + ' is gestoor.');
+        App.terug();
+        return;
+      case 'seisoen_nota':
+        voegBewerkingBy('seisoen_nota', { datum: v.datum, seisoen: v.seisoen, nota: v.nota.trim() });
+        boodskap('Nota by lamseisoen ' + v.seisoen + ' gestoor.');
+        App.terug();
+        return;
+      case 'skenking':
+        voegBewerkingBy('skenking', { datum: v.datum, nommer: n, aanWie: v.aanWie.trim(), rede: v.rede.trim(), nota: v.nota.trim() });
+        boodskap('Totsiens! ' + n + ' gaan na ' + v.aanWie.trim() + '.');
+        App.terug();
+        return;
     }
   },
 };
@@ -347,7 +420,7 @@ Skerms.vorm = function (p) {
       lyf += dierVeld('ma', v.ma, 'Ma (ooi)', { lys: ooie(a) });
       lyf += '<div class="veld"><label for="v-pa">Pa (ram)</label><select class="inv" id="v-pa" data-v="pa"><option value="">Onbekend</option>' +
         ramme(a).map(function (r) { return '<option value="' + esc(r.n) + '"' + (r.n === v.pa ? ' selected' : '') + '>Ram ' + esc(r.n) + '</option>'; }).join('') + '</select></div>';
-      lyf += '<div class="twee">' + datumVeld('datum', v.datum, 'Geboortedatum') + keuseVeld('seisoen', v.seisoen, 'Lamseisoen', ['SeptOkt', 'MaartApr']) + '</div>';
+      lyf += '<div class="twee">' + datumVeld('datum', v.datum, 'Geboortedatum') + keuseVeld('seisoen', v.seisoen, 'Lamseisoen', lamSeisoenOpsies(a, v.seisoen)) + '</div>';
       lyf += etiket('Hoeveel lammers?') + '<div class="stapper"><button type="button" data-a="vorm-aksie" data-w="minder">−</button><span>' + v.aantal + '</span>' +
         '<button type="button" data-a="vorm-aksie" data-w="meer">+</button><span style="font-size:15px;font-weight:400;color:var(--teks-2)">' + ['', 'Enkel', 'Tweeling', 'Drieling'][v.aantal] + '</span></div></div>';
       const toegeken = [];
@@ -426,10 +499,13 @@ Skerms.vorm = function (p) {
 
     case 'uit': case 'verkoop':
       lyf += dierVeld('nommer', v.nommer);
-      if (isEienaar() && t === 'uit') lyf += etiket('Wat het gebeur?') + kiesKnoppies('tipe', v.tipe, ['Dood', 'Verkoop'], 'rooi') + '</div>';
+      if (isEienaar() && t === 'uit') lyf += etiket('Wat het gebeur?') + kiesKnoppies('tipe', v.tipe, ['Dood', 'Verkoop', 'Geskenk'], 'rooi') + '</div>';
       lyf += datumVeld('datum', v.datum);
       if (v.tipe === 'Dood') lyf += teksVeld('rede', v.rede, 'Oorsaak (as bekend)', 'bv. bloednier, jakkals');
-      else {
+      else if (v.tipe === 'Geskenk') {
+        lyf += teksVeld('aanWie', v.aanWie, 'Aan wie geskenk?', 'bv. buurman, kerk');
+        lyf += teksVeld('rede', v.rede, 'Rede (opsioneel)', 'bv. vir die kerkbasaar');
+      } else {
         lyf += teksVeld('aanWie', v.aanWie, 'Aan wie verkoop?', 'Koper se naam');
         lyf += '<div class="twee">' + getalVeld('prys', v.prys, 'Prys', 'R') + getalVeld('gewig', v.gewig, 'Gewig', 'kg') + '</div>';
         if (syfer(v.prys) > 0 && syfer(v.gewig) > 0) lyf += '<div class="hulp" style="margin-top:-8px">R ' + (Math.round(syfer(v.prys) / syfer(v.gewig) * 100) / 100) + ' per kg</div>';
@@ -495,8 +571,42 @@ Skerms.vorm = function (p) {
       break;
 
     case 'gesond':
-      lyf += '<div class="inligting"><i class="ti ti-heart"></i><span>Skaap ' + esc(v.nommer) + ' is weer gesond.</span></div>';
+      lyf += '<div class="inligting"><i class="ti ti-heart"></i><span>' + (sleutelVan(v.nommer) ? 'Skaap ' + esc(v.nommer) + ' is weer gesond.' : 'Die hele ' + esc(v.groep || 'groep') + ' is weer gesond.') + '</span></div>';
       lyf += datumVeld('datum', v.datum, 'Gesond sedert');
+      break;
+
+    case 'produk': {
+      lyf += '<div class="inligting"><i class="ti ti-info-circle"></i><span>Die produk word by die <b>Spuit Program</b>-oortjie gevoeg, met die groepe en dosis wat jy hier merk.</span></div>';
+      lyf += etiket('Program') + kiesKnoppies('program', v.program, PROGRAMME) + '</div>';
+      lyf += teksVeld('produk', v.produk, 'Produk / medisyne', 'bv. Multivax P');
+      lyf += teksVeld('beskrywing', v.beskrywing, 'Beskrywing', 'bv. teen bloednier, 1 ml/25 kg');
+      lyf += '<div class="twee">' + getalVeld('onttrekking', v.onttrekking, 'Onttrekking', 'dae', 'bv. 21') + teksVeld('ouderdom', v.ouderdom, 'Ouderdom', 'bv. vanaf speen') + '</div>';
+      lyf += etiket('Teikengroepe') + kiesKnoppies('groepe', v.groepe, GROEPE) + '</div>';
+      v.groepe.forEach(function (g) { lyf += getalVeld('d_' + GROEPE.indexOf(g), v['d_' + GROEPE.indexOf(g)], 'Dosis vir ' + g, 'ml', 'bv. 2'); });
+      break;
+    }
+
+    case 'siekte':
+      lyf += teksVeld('siekte', v.siekte, 'Siekte', 'bv. Bloednier');
+      lyf += teksVeld('simptome', v.simptome, 'Simptome', 'bv. skielike dood, krampe, opgeblaas', true);
+      lyf += teksVeld('seisoen', v.seisoen, 'Wanneer kom dit voor?', 'bv. lente, na reën, by speen');
+      lyf += teksVeld('spuitstof', v.spuitstof, 'Spuitstof voorstelle', 'bv. Glanvac 3, Multivax P', true);
+      lyf += teksVeld('nota', v.nota, 'Nota', 'Opsioneel', true);
+      break;
+
+    case 'seisoen_nota':
+      lyf += '<div class="inligting"><i class="ti ti-baby-carriage"></i><span>Nota oor lamseisoen <b>' + esc(v.seisoen) + '</b>.</span></div>';
+      lyf += datumVeld('datum', v.datum);
+      lyf += teksVeld('nota', v.nota, 'Nota', 'bv. Baie tweelinge, koue nagte in Sep', true);
+      break;
+
+    case 'skenking':
+      lyf += '<div class="inligting"><i class="ti ti-gift"></i><span>Die skaap word as <b>Geskenk</b> uit die kudde gehaal. Sy geskiedenis bly bewaar.</span></div>';
+      lyf += dierVeld('nommer', v.nommer);
+      lyf += datumVeld('datum', v.datum);
+      lyf += teksVeld('aanWie', v.aanWie, 'Aan wie geskenk?', 'bv. buurman, kerk');
+      lyf += teksVeld('rede', v.rede, 'Rede', 'bv. vir die kerkbasaar');
+      lyf += teksVeld('nota', v.nota, 'Nota', 'Opsioneel');
       break;
   }
 

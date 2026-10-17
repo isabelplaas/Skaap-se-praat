@@ -1,7 +1,7 @@
 /* Skaap se Praat – hou die app beskikbaar sonder sein */
-const WEERGAWE = 'ssp-v8';
+const WEERGAWE = 'ssp-v11';
 const LEER = ['./', 'index.html', 'app.css', 'data.js', 'demo.js', 'app.js', 'vorms.js', 'manifest.webmanifest',
-  'ikoon.svg', 'ikoon-192.png', 'ikoon-512.png', 'ikone.js'];
+  'ikoon.svg', 'ikoon-192.png', 'ikoon-512.png', 'ikone.js', 'bladsye.js'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(WEERGAWE).then(function (c) { return c.addAll(LEER); }).then(function () { return self.skipWaiting(); }));

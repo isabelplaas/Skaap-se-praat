@@ -34,6 +34,7 @@ const Toestand = {
   laasteSink: Berg.lees('laasteSink', null),
   besig: false,
   demo: false,
+  fout: '',
 };
 
 function stoorToestand() {
@@ -68,7 +69,7 @@ async function sinkroniseer(opsioneel) {
   if (!KONFIG.API || !Toestand.sleutel || Toestand.besig) return;
   if (!navigator.onLine) { App.werkStatus(); return; }
   Toestand.besig = true;
-  App.werkStatus();
+  if (!Toestand.bediener) App.herteken(); else App.werkStatus();
   try {
     let antwoord;
     const ops = Toestand.uitboks.slice();
@@ -98,13 +99,18 @@ async function sinkroniseer(opsioneel) {
       Toestand.bediener = antwoord.data;
       Toestand.wie = antwoord.wie || Toestand.wie;
       Toestand.laasteSink = new Date().toISOString();
+      Toestand.fout = '';
     } else if (antwoord && antwoord.fout === 'sleutel') {
       Toestand.wie = null;
+      Toestand.fout = 'Die sheet herken nie hierdie skakel se sleutel nie. Maak jou persoonlike skakel weer oop.';
+    } else {
+      Toestand.fout = 'Die sheet het \'n fout teruggestuur: ' + ((antwoord && antwoord.fout) || 'onbekend');
     }
     stoorToestand();
     Afgelei.ongeldig();
   } catch (e) {
     // Geen sein of bediener onbereikbaar – probeer later weer.
+    Toestand.fout = 'Kon nie die sheet bereik nie. Kyk of daar sein is en probeer weer. (' + (e && e.message ? e.message : e) + ')';
   } finally {
     Toestand.besig = false;
     App.herteken();
@@ -112,6 +118,12 @@ async function sinkroniseer(opsioneel) {
 }
 
 window.addEventListener('online', function () { sinkroniseer(); });
+// As die app weer oopgemaak word, haal die nuutste data (hoogstens elke 2 minute).
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState !== 'visible' || Toestand.demo) return;
+  const laas = Toestand.laasteSink ? new Date(Toestand.laasteSink).getTime() : 0;
+  if (Date.now() - laas > 120000 || Toestand.fout) sinkroniseer();
+});
 setInterval(function () { if (Toestand.uitboks.length) sinkroniseer(); }, 60000);
 
 /* ---------- Hulpfunksies ---------- */
@@ -179,6 +191,10 @@ function leegData() {
     Notas: ['Datum', 'Nommer', 'Nota'],
     Bestellings: ['Datum Bestel', 'Naam', 'Kontak', 'Benodig Op', 'Aantal', 'Wat', 'Nota', 'Status', 'Afgehandel Op'],
     Verkoop: ['Date', 'Nommer', 'Aan Wie', 'Groep outomaties', 'Prys', 'Gewig', 'R/kg', 'Paid'],
+    Seisoene: ['Tipe', 'Seisoen', 'Begin', 'Einde', 'Nota'],
+    'Seisoen Notas': ['Datum', 'Seisoen', 'Nota'],
+    Siektes: ['Siekte', 'Simptome', 'Seisoen', 'Spuitstof voorstelle', 'Nota'],
+    Skenkings: ['Datum', 'Nommer', 'Aan Wie', 'Rede', 'Nota'],
   };
   const d = {};
   Object.keys(kop).forEach(function (k) { d[k] = { kop: kop[k], rye: [] }; });
@@ -273,6 +289,34 @@ function pasPlaaslikToe(data, op) {
       else voegRyBy(data, 'Verkoop', { 'Date': d.datum, 'Nommer': d.nommer });
       break;
     }
+    case 'produk': {
+      if (!data['Spuit Program']) break;
+      const t = data['Spuit Program'];
+      const w = t.kop.map(function () { return ''; });
+      const zet = function (k, v) { const i = t.kop.indexOf(k); if (i >= 0) w[i] = v; };
+      zet('Program', d.program); zet('Produk', d.produk); zet('Beskrywing', d.beskrywing || '');
+      zet('Onttrekking (dae)', d.onttrekking === undefined ? '' : d.onttrekking); zet('Ouderdom', d.ouderdom || '');
+      zet('Teiken groepe', (d.groepe || []).join(', '));
+      t.kop.forEach(function (k, i) {
+        if (GROEPE.indexOf(k) < 0) return;
+        const aan = (d.groepe || []).indexOf(k) >= 0;
+        w[i] = aan;
+        if (t.kop[i + 1] && t.kop[i + 1].indexOf('Dosis') === 0) w[i + 1] = aan ? ((d.dosisse || {})[k] === undefined ? '' : d.dosisse[k]) : '';
+      });
+      t.rye.push({ r: 0, w: w, plaaslik: true });
+      break;
+    }
+    case 'siekte':
+      if (d.ry) stelWaarde(data, 'Siektes', function (o) { return o._r === d.ry; }, { 'Siekte': d.siekte, 'Simptome': d.simptome, 'Seisoen': d.seisoen, 'Spuitstof voorstelle': d.spuitstof, 'Nota': d.nota });
+      else voegRyBy(data, 'Siektes', { 'Siekte': d.siekte, 'Simptome': d.simptome, 'Seisoen': d.seisoen, 'Spuitstof voorstelle': d.spuitstof, 'Nota': d.nota });
+      break;
+    case 'seisoen_nota':
+      voegRyBy(data, 'Seisoen Notas', { 'Datum': d.datum, 'Seisoen': d.seisoen, 'Nota': d.nota });
+      break;
+    case 'skenking':
+      stelWaarde(data, 'Register', function (o) { return gelyk(o.Nommer, d.nommer); }, { 'Dood/Verkoop': 'Geskenk', 'Datum Uit': d.datum });
+      voegRyBy(data, 'Skenkings', { 'Datum': d.datum, 'Nommer': d.nommer, 'Aan Wie': d.aanWie, 'Rede': d.rede, 'Nota': d.nota });
+      break;
     case 'verkoop': {
       stelWaarde(data, 'Register', function (o) { return gelyk(o.Nommer, d.nommer); }, { 'Dood/Verkoop': 'Verkoop', 'Datum Uit': d.datum });
       voegRyBy(data, 'Verkoop', { 'Date': d.datum, 'Nommer': d.nommer, 'Aan Wie': d.aanWie, 'Prys': d.prys, 'Gewig': d.gewig, 'Paid': !!d.betaal });
@@ -310,9 +354,16 @@ function bereken(data) {
   const ope_bestellings = bestellings.filter(function (o) { return (o.Status || 'Oop') === 'Oop'; })
     .sort(function (x, y) { return String(x['Benodig Op']).localeCompare(String(y['Benodig Op'])); });
 
-  const doodSet = {}, verkoopSet = {};
+  const skenkings = tabel(data, 'Skenkings').filter(function (o) { return sleutelVan(o.Nommer) !== ''; });
+  const seisoenNotas = tabel(data, 'Seisoen Notas').filter(function (o) { return o.Seisoen && o.Nota; });
+  const siektes = tabel(data, 'Siektes').filter(function (o) { return o.Siekte; })
+    .sort(function (x, y) { return String(x.Siekte).localeCompare(String(y.Siekte)); });
+  const seisoene = seisoenDefinisies(tabel(data, 'Seisoene'));
+
+  const doodSet = {}, verkoopSet = {}, skenkSet = {};
   siek.forEach(function (o) { if (o.Status === 'Dood' && sleutelVan(o.Nommer)) doodSet[sleutelVan(o.Nommer)] = o['Gesond/Dood Datum'] || o.Datum; });
   verkoop.forEach(function (o) { verkoopSet[sleutelVan(o.Nommer)] = o.Date || ''; });
+  skenkings.forEach(function (o) { skenkSet[sleutelVan(o.Nommer)] = o.Datum || ''; });
 
   const diere = {};
   const vandagD = naDatum(vandag());
@@ -323,13 +374,14 @@ function bereken(data) {
     if (!status) {
       if (doodSet[n] !== undefined) status = 'Dood';
       else if (verkoopSet[n] !== undefined) status = 'Verkoop';
+      else if (skenkSet[n] !== undefined) status = 'Geskenk';
     }
     const gb = o['Geboorte Datum'] || '';
     diere[n] = {
       n: n, lam: false, geslag: o.Geslag || '', groep: o.Groep || '', geboorte: gb,
       ouderdomJaar: gb ? Math.floor(dae(naDatum(gb), vandagD) / 365.25) : (o.Ouderdom === '' ? null : getal(o.Ouderdom)),
-      uit: status === 'Dood' || status === 'Verkoop' ? status : '',
-      datumUit: o['Datum Uit'] || (status === 'Dood' ? doodSet[n] : status === 'Verkoop' ? verkoopSet[n] : '') || '',
+      uit: status === 'Dood' || status === 'Verkoop' || status === 'Geskenk' ? status : '',
+      datumUit: o['Datum Uit'] || (status === 'Dood' ? doodSet[n] : status === 'Verkoop' ? verkoopSet[n] : status === 'Geskenk' ? skenkSet[n] : '') || '',
       herkoms: o.Herkoms || '', bygevoeg: o['Datum Bygevoeg'] || '', _r: o._r,
       gereed: o.Groep === 'Om te verkoop' ? (o['Verkoop Gereed'] || 'Nie gereed') : '',
     };
@@ -342,8 +394,8 @@ function bereken(data) {
     diere[n] = {
       n: n, lam: true, geslag: groep === 'Ooi Lam by MA' ? 'Ooi' : groep === 'Hammel Lam by MA' ? 'Hammel' : '',
       groep: groep, geboorte: o['Geboorte Datum'] || '', ma: sleutelVan(o['Ma Nommer']), pa: sleutelVan(o.Pa),
-      uit: doodSet[n] !== undefined ? 'Dood' : verkoopSet[n] !== undefined ? 'Verkoop' : '',
-      datumUit: doodSet[n] || verkoopSet[n] || '', kondisie: o.Kondisie || '', seisoen: o['Lam Seisoen'] || '',
+      uit: doodSet[n] !== undefined ? 'Dood' : verkoopSet[n] !== undefined ? 'Verkoop' : skenkSet[n] !== undefined ? 'Geskenk' : '',
+      datumUit: doodSet[n] || verkoopSet[n] || skenkSet[n] || '', kondisie: o.Kondisie || '', seisoen: o['Lam Seisoen'] || '',
     };
   });
 
@@ -381,8 +433,23 @@ function bereken(data) {
   program.forEach(function (o) { const p = String(o.Produk).trim(); if (p && produkte.indexOf(p) < 0) produkte.push(p); });
   produkte.sort();
 
+  // Sterftes: volwasse diere en lammers wat dood is, plus doodgebore en geaborteerde lammers.
+  const sterftes = [];
+  lys.forEach(function (d) {
+    if (d.uit !== 'Dood') return;
+    const rek = siek.filter(function (o) { return o.Status === 'Dood' && gelyk(o.Nommer, d.n); })[0];
+    const rede = rek && rek['Probleem/Simptome'] && rek['Probleem/Simptome'].indexOf('Dood (gemerk') !== 0 && rek['Probleem/Simptome'] !== 'Dood' ? rek['Probleem/Simptome'] : '';
+    sterftes.push({ datum: d.datumUit || '', soort: d.lam ? 'Lam' : 'Volwasse', n: d.n, groep: d.groep, rede: rede });
+  });
+  lam.forEach(function (o) {
+    if (o.Kondisie !== 'Dood gebore' && o.Kondisie !== 'Aborteer') return;
+    sterftes.push({ datum: o['Geboorte Datum'] || '', soort: o.Kondisie, n: '', ma: sleutelVan(o['Ma Nommer']), rede: o['Rekord Nota'] || o['Lam Nota'] || '' });
+  });
+  sterftes.sort(function (x, y) { return String(y.datum).localeCompare(String(x.datum)); });
+
   return { data: data, diere: diere, lys: lys, lam: lam, siek: siek, ope: ope, spuit: spuit, weeg: weeg,
-    notas: notas, verkoop: verkoop, bestellings: bestellings, opeBestellings: ope_bestellings, program: program, aksies: aksies, ram: ram, gebruik: gebruik, produkte: produkte };
+    notas: notas, verkoop: verkoop, bestellings: bestellings, opeBestellings: ope_bestellings, program: program, aksies: aksies, ram: ram, gebruik: gebruik, produkte: produkte,
+    skenkings: skenkings, seisoenNotas: seisoenNotas, siektes: siektes, seisoene: seisoene, sterftes: sterftes };
 }
 
 /* ---------- Navraag-funksies ---------- */
@@ -472,13 +539,51 @@ function speengewig(a, n) {
   return s ? s['Gewig (kg)'] : '';
 }
 
-function seisoenVir(datumS) {
-  const d = naDatum(datumS);
-  if (!d) return '';
-  const m = d.getMonth() + 1;
-  if (m >= 2 && m <= 6) return 'MaartApr';
-  return 'SeptOkt';
+/* ---------- Seisoene (lam en teel) ----------
+   Die Seisoene-oortjie se datums herhaal elke jaar: net dag en maand tel.
+   'n Seisoen se naam kry die jaar van sy begin, bv. "Sep 26". */
+const VERSTEK_SEISOENE = [
+  { Tipe: 'Lam', Seisoen: 'Sep', Begin: '2026-08-20', Einde: '2026-11-04' },
+  { Tipe: 'Lam', Seisoen: 'Maart', Begin: '2026-02-20', Einde: '2026-05-06' },
+  { Tipe: 'Teel', Seisoen: 'Okt', Begin: '2026-10-15', Einde: '2026-12-01' },
+  { Tipe: 'Teel', Seisoen: 'April', Begin: '2026-04-15', Einde: '2026-05-31' },
+];
+function seisoenDefinisies(rye) {
+  const bron = rye.filter(function (o) { return o.Tipe && o.Seisoen && naDatum(o.Begin) && naDatum(o.Einde); });
+  return (bron.length ? bron : VERSTEK_SEISOENE).map(function (o) {
+    const b = naDatum(o.Begin), e = naDatum(o.Einde);
+    return { tipe: String(o.Tipe).trim(), naam: String(o.Seisoen).trim(), bm: b.getMonth(), bd: b.getDate(), em: e.getMonth(), ed: e.getDate() };
+  });
 }
+function datumS(x) { return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }
+// Een spesifieke jaar se seisoen (begin in 'jaar').
+function seisoenIn(def, jaar) {
+  const begin = new Date(jaar, def.bm, def.bd);
+  let einde = new Date(jaar, def.em, def.ed);
+  if (einde < begin) einde = new Date(jaar + 1, def.em, def.ed);
+  return { tipe: def.tipe, naam: def.naam + ' ' + String(jaar).slice(-2), begin: datumS(begin), einde: datumS(einde), jaar: jaar, def: def };
+}
+// Seisoene wat op 'n datum aan die gang is.
+function seisoeneOp(a, s) {
+  const d = s || vandag();
+  const j = Number(d.slice(0, 4));
+  const uit = [];
+  a.seisoene.forEach(function (def) {
+    [j - 1, j].forEach(function (y) { const x = seisoenIn(def, y); if (x.begin <= d && d <= x.einde) uit.push(x); });
+  });
+  return uit;
+}
+// Die lamseisoen waaraan 'n geboortedatum behoort: die jongste lamseisoen wat op of voor die datum begin het.
+function lamSeisoenVir(a, s) {
+  if (!s || !naDatum(s)) return null;
+  const j = Number(s.slice(0, 4));
+  let beste = null;
+  a.seisoene.filter(function (x) { return x.tipe === 'Lam'; }).forEach(function (def) {
+    [j - 1, j].forEach(function (y) { const x = seisoenIn(def, y); if (x.begin <= s && (!beste || x.begin > beste.begin)) beste = x; });
+  });
+  return beste;
+}
+function seisoenVir(s) { const x = lamSeisoenVir(Afgelei.get(), s); return x ? x.naam : ''; }
 
 /* Die skaap se eie stem */
 function stemVan(a, d) {
@@ -492,6 +597,10 @@ function stemVan(a, d) {
   }
   if (d.uit === 'Verkoop') {
     dele.push('Ek is verkoop' + (d.datumUit ? ' op ' + mooiDatum(d.datumUit) : '') + '.');
+    return dele.join(' ');
+  }
+  if (d.uit === 'Geskenk') {
+    dele.push('Ek is weggegee' + (d.datumUit ? ' op ' + mooiDatum(d.datumUit) : '') + ' en bly in iemand anders se kraal.');
     return dele.join(' ');
   }
   const ou = ouderdomTeks(d);
