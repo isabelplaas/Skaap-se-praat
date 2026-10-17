@@ -119,6 +119,12 @@ function demoData() {
   r = d['Siek diere'].rye.length + 2;
   ry('Siek diere', [dt(m, 10), '', 'Gespeende Hammel Lam', 'Hoes en loopneus', 'Uitgesonder in kampie', 'Onder behandeling', '', 'Terramycin LA', 3]);
   r = 2;
+  ry('Skeer', [dt(8, 12), 'Groot Ooi, Ram', 14, 'Skeerder Koos']);
+  r = 2;
+  ry('Wol', [dt(8, 12), 'Vag', 162, '1', dt(8, 30), '']);
+  ry('Wol', [dt(8, 12), 'Vag', 158, '2', '', '']);
+  ry('Wol', [dt(8, 12), 'Pense', 74, '3', '', '']);
+  r = 2;
   ry('Ram', ['Oktober Teel Seisoen', dt(10, 15), dt(11, 30)]);
   ry('Ram', ['April Teel Seisoen', dt(4, 15), dt(5, 31)]);
   return d;

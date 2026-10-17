@@ -9,6 +9,10 @@ const KONFIG = {
 const GROEPE = ['Groot Ooi', 'Ram', 'Ooi Lam by MA', 'Hammel Lam by MA', 'Hans Lam', 'Gespeende Ooi Lam', 'Gespeende Hammel Lam'];
 const ALLE_GROEPE = GROEPE.concat(['Om te verkoop']);
 const LAMGROEPE = ['Ooi Lam by MA', 'Hammel Lam by MA', 'Hans Lam'];
+// Virtuele groepe vir spuit en siek: die Om te verkoop-groep verdeel volgens gereed of nie.
+const VERKOOP_GROEPE = { 'Om te verkoop (gereed)': 'Gereed', 'Om te verkoop (nie gereed)': 'Nie gereed' };
+const SPUIT_GROEPE = GROEPE.concat(Object.keys(VERKOOP_GROEPE));
+const WOLTIPES = ['Vag', 'Pense', 'Stukke', 'Lokke', 'Lamwol', 'Kleurwol'];
 const PROGRAMME = ['Feb Spuit Program', 'Aug Spuit Program', 'Speen Spuit Program', 'Buite Program'];
 const KONDISIES = ['Mooi', 'Swak/Klein', 'Dood gebore', 'Aborteer'];
 const MAANDE = ['Jan', 'Feb', 'Mrt', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -64,22 +68,49 @@ function voegBewerkingBy(tipe, data) {
 
 /* ---------- Sinkronisering ---------- */
 
+// Fetch met 'n tydsbeperking: met swak sein bly 'n versoek anders vir altyd hang.
+async function haal(url, opsies, ms) {
+  const beheer = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const t = beheer ? setTimeout(function () { beheer.abort(); }, ms) : null;
+  try {
+    const r = await fetch(url, Object.assign({}, opsies || {}, beheer ? { signal: beheer.signal } : {}));
+    const teks = await r.text();
+    try { return JSON.parse(teks); } catch (x) {
+      // Google het 'n foutbladsy (HTML) gestuur in plaas van data: wys wat daarin staan.
+      const skoon = teks.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const f = new Error(skoon.slice(0, 220) || 'Onverwagte antwoord');
+      f.bediener = true;
+      throw f;
+    }
+  } finally { if (t) clearTimeout(t); }
+}
+
+let volgendePoging = null;
+function probeerWeerOor(ms) {
+  clearTimeout(volgendePoging);
+  volgendePoging = setTimeout(function () { sinkroniseer(); }, ms);
+}
+
 async function sinkroniseer(opsioneel) {
   if (Toestand.demo) { demoSink(); return; }
-  if (!KONFIG.API || !Toestand.sleutel || Toestand.besig) return;
-  if (!navigator.onLine) { App.werkStatus(); return; }
+  if (!KONFIG.API || !Toestand.sleutel) return;
+  // 'n Vorige poging wat langer as 'n minuut hang, tel nie meer nie.
+  if (Toestand.besig && Date.now() - (Toestand.besigSedert || 0) < 60000) return;
+  const poging = (Toestand.poging || 0) + 1;
+  Toestand.poging = poging;
   Toestand.besig = true;
+  Toestand.besigSedert = Date.now();
   if (!Toestand.bediener) App.herteken(); else App.werkStatus();
+  let gelukt = false;
   try {
     let antwoord;
     const ops = Toestand.uitboks.slice();
     if (ops.length) {
-      const r = await fetch(KONFIG.API, {
+      antwoord = await haal(KONFIG.API, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ k: Toestand.sleutel, ops: ops }),
-      });
-      antwoord = await r.json();
+      }, 45000);
       if (antwoord.ok) {
         const klaar = {};
         (antwoord.resultate || []).forEach(function (res) {
@@ -92,14 +123,15 @@ async function sinkroniseer(opsioneel) {
         Toestand.uitboks = Toestand.uitboks.filter(function (o) { return !klaar[o.id]; });
       }
     } else {
-      const r = await fetch(KONFIG.API + '?k=' + encodeURIComponent(Toestand.sleutel));
-      antwoord = await r.json();
+      antwoord = await haal(KONFIG.API + '?k=' + encodeURIComponent(Toestand.sleutel), {}, 45000);
     }
+    if (poging !== Toestand.poging) return; // 'n nuwer poging het reeds oorgeneem
     if (antwoord && antwoord.ok) {
-      Toestand.bediener = antwoord.data;
+      if (antwoord.data) Toestand.bediener = antwoord.data;
       Toestand.wie = antwoord.wie || Toestand.wie;
       Toestand.laasteSink = new Date().toISOString();
       Toestand.fout = '';
+      gelukt = true;
     } else if (antwoord && antwoord.fout === 'sleutel') {
       Toestand.wie = null;
       Toestand.fout = 'Die sheet herken nie hierdie skakel se sleutel nie. Maak jou persoonlike skakel weer oop.';
@@ -109,22 +141,29 @@ async function sinkroniseer(opsioneel) {
     stoorToestand();
     Afgelei.ongeldig();
   } catch (e) {
-    // Geen sein of bediener onbereikbaar – probeer later weer.
-    Toestand.fout = 'Kon nie die sheet bereik nie. Kyk of daar sein is en probeer weer. (' + (e && e.message ? e.message : e) + ')';
+    if (poging !== Toestand.poging) return;
+    // Geen sein, swak sein of bediener onbereikbaar – probeer outomaties weer.
+    Toestand.fout = e && e.bediener ? 'Die sheet het \'n fout gegee: ' + e.message
+      : Toestand.uitboks.length ? 'Geen sein nie. ' + Toestand.uitboks.length + ' inskrywing(s) wag en word outomaties gestuur sodra daar sein is.'
+      : 'Kon nie die sheet bereik nie. Kyk of daar sein is en probeer weer.';
   } finally {
-    Toestand.besig = false;
-    App.herteken();
+    if (poging === Toestand.poging) {
+      Toestand.besig = false;
+      App.herteken();
+      // Iets wat intussen bygekom het, of 'n mislukte poging: probeer weer.
+      if (Toestand.uitboks.length) probeerWeerOor(gelukt ? 1500 : 20000);
+    }
   }
 }
 
-window.addEventListener('online', function () { sinkroniseer(); });
-// As die app weer oopgemaak word, haal die nuutste data (hoogstens elke 2 minute).
+// Probeer stuur sodra die toestel weer sein het, die app weer oopgemaak word, of elke 30 sekondes as iets wag.
+['online', 'focus', 'pageshow'].forEach(function (g) { window.addEventListener(g, function () { if (Toestand.uitboks.length) sinkroniseer(); else if (g === 'online') sinkroniseer(); }); });
 document.addEventListener('visibilitychange', function () {
   if (document.visibilityState !== 'visible' || Toestand.demo) return;
   const laas = Toestand.laasteSink ? new Date(Toestand.laasteSink).getTime() : 0;
-  if (Date.now() - laas > 120000 || Toestand.fout) sinkroniseer();
+  if (Toestand.uitboks.length || Date.now() - laas > 120000 || Toestand.fout) sinkroniseer();
 });
-setInterval(function () { if (Toestand.uitboks.length) sinkroniseer(); }, 60000);
+setInterval(function () { if (Toestand.uitboks.length) sinkroniseer(); }, 30000);
 
 /* ---------- Hulpfunksies ---------- */
 
@@ -195,6 +234,8 @@ function leegData() {
     'Seisoen Notas': ['Datum', 'Seisoen', 'Nota'],
     Siektes: ['Siekte', 'Simptome', 'Seisoen', 'Spuitstof voorstelle', 'Nota'],
     Skenkings: ['Datum', 'Nommer', 'Aan Wie', 'Rede', 'Nota'],
+    Skeer: ['Datum', 'Groepe', 'Aantal geskeer', 'Nota'],
+    Wol: ['Datum', 'Tipe wol', 'Gewig (kg)', 'Baal Nr', 'Gestuur na BKB', 'Nota'],
   };
   const d = {};
   Object.keys(kop).forEach(function (k) { d[k] = { kop: kop[k], rye: [] }; });
@@ -205,7 +246,8 @@ function voegRyBy(data, naam, waardes) {
   if (!data[naam]) data[naam] = leegData()[naam] || { kop: Object.keys(waardes), rye: [] };
   const t = data[naam];
   const w = t.kop.map(function (k) { return k in waardes ? waardes[k] : ''; });
-  t.rye.push({ r: 0, w: w, plaaslik: true });
+  // Plaaslike rye kry 'n tydelike negatiewe nommer (uniek, en dieselfde by elke herberekening).
+  t.rye.push({ r: -(t.rye.length + 1), w: w, plaaslik: true });
 }
 
 function stelWaarde(data, naam, pas, waardes) {
@@ -303,12 +345,24 @@ function pasPlaaslikToe(data, op) {
         w[i] = aan;
         if (t.kop[i + 1] && t.kop[i + 1].indexOf('Dosis') === 0) w[i + 1] = aan ? ((d.dosisse || {})[k] === undefined ? '' : d.dosisse[k]) : '';
       });
-      t.rye.push({ r: 0, w: w, plaaslik: true });
+      t.rye.push({ r: -(t.rye.length + 1), w: w, plaaslik: true });
       break;
     }
     case 'siekte':
       if (d.ry) stelWaarde(data, 'Siektes', function (o) { return o._r === d.ry; }, { 'Siekte': d.siekte, 'Simptome': d.simptome, 'Seisoen': d.seisoen, 'Spuitstof voorstelle': d.spuitstof, 'Nota': d.nota });
       else voegRyBy(data, 'Siektes', { 'Siekte': d.siekte, 'Simptome': d.simptome, 'Seisoen': d.seisoen, 'Spuitstof voorstelle': d.spuitstof, 'Nota': d.nota });
+      break;
+    case 'lam_probleem':
+      stelWaarde(data, 'Lam', function (o) { return gelyk(o['Lam Nommer'], d.nommer); }, { 'Ooi Probleem': d.probleem });
+      break;
+    case 'skeer':
+      voegRyBy(data, 'Skeer', { 'Datum': d.datum, 'Groepe': (d.groepe || []).join(', '), 'Aantal geskeer': d.aantal, 'Nota': d.nota });
+      break;
+    case 'wolbaal':
+      voegRyBy(data, 'Wol', { 'Datum': d.datum, 'Tipe wol': d.tipe, 'Gewig (kg)': d.gewig, 'Baal Nr': d.baal, 'Gestuur na BKB': d.gestuur || '', 'Nota': d.nota });
+      break;
+    case 'wol_gestuur':
+      stelWaarde(data, 'Wol', function (o) { return (d.rye || []).indexOf(o._r) >= 0; }, { 'Gestuur na BKB': d.datum });
       break;
     case 'seisoen_nota':
       voegRyBy(data, 'Seisoen Notas', { 'Datum': d.datum, 'Seisoen': d.seisoen, 'Nota': d.nota });
@@ -359,6 +413,10 @@ function bereken(data) {
   const siektes = tabel(data, 'Siektes').filter(function (o) { return o.Siekte; })
     .sort(function (x, y) { return String(x.Siekte).localeCompare(String(y.Siekte)); });
   const seisoene = seisoenDefinisies(tabel(data, 'Seisoene'));
+  const skeer = tabel(data, 'Skeer').filter(function (o) { return o.Datum; })
+    .sort(function (x, y) { return String(y.Datum).localeCompare(String(x.Datum)); });
+  const wol = tabel(data, 'Wol').filter(function (o) { return o['Tipe wol'] || o['Gewig (kg)']; })
+    .sort(function (x, y) { return String(y.Datum).localeCompare(String(x.Datum)) || getal(y['Baal Nr']) - getal(x['Baal Nr']); });
 
   const doodSet = {}, verkoopSet = {}, skenkSet = {};
   siek.forEach(function (o) { if (o.Status === 'Dood' && sleutelVan(o.Nommer)) doodSet[sleutelVan(o.Nommer)] = o['Gesond/Dood Datum'] || o.Datum; });
@@ -449,7 +507,7 @@ function bereken(data) {
 
   return { data: data, diere: diere, lys: lys, lam: lam, siek: siek, ope: ope, spuit: spuit, weeg: weeg,
     notas: notas, verkoop: verkoop, bestellings: bestellings, opeBestellings: ope_bestellings, program: program, aksies: aksies, ram: ram, gebruik: gebruik, produkte: produkte,
-    skenkings: skenkings, seisoenNotas: seisoenNotas, siektes: siektes, seisoene: seisoene, sterftes: sterftes };
+    skenkings: skenkings, seisoenNotas: seisoenNotas, siektes: siektes, seisoene: seisoene, sterftes: sterftes, skeer: skeer, wol: wol };
 }
 
 /* ---------- Navraag-funksies ---------- */
@@ -463,7 +521,12 @@ function vryNommers(a, aantal, ekstra) {
 }
 
 function aktieweDiere(a) { return a.lys.filter(function (d) { return d.aktief; }); }
-function inGroepe(a, groepe) { return aktieweDiere(a).filter(function (d) { return groepe.indexOf(d.groep) >= 0; }); }
+function inGroep(d, g) {
+  if (g === 'Alle groepe') return true;
+  if (VERKOOP_GROEPE[g]) return d.groep === 'Om te verkoop' && (d.gereed || 'Nie gereed') === VERKOOP_GROEPE[g];
+  return d.groep === g;
+}
+function inGroepe(a, groepe) { return aktieweDiere(a).filter(function (d) { return groepe.some(function (g) { return inGroep(d, g); }); }); }
 function ooie(a) { return aktieweDiere(a).filter(function (d) { return !d.lam && d.geslag === 'Ooi'; }); }
 function ramme(a) { return aktieweDiere(a).filter(function (d) { return !d.lam && d.groep === 'Ram'; }); }
 
@@ -489,7 +552,7 @@ function spuitVir(a, n) {
 function siekVir(a, d) {
   return a.siek.filter(function (o) {
     if (gelyk(o.Nommer, d.n)) return true;
-    return sleutelVan(o.Nommer) === '' && (o.Groep === 'Alle groepe' || (o.Groep && o.Groep === d.groep));
+    return sleutelVan(o.Nommer) === '' && !!o.Groep && inGroep(d, o.Groep);
   }).sort(function (x, y) { return String(y.Datum).localeCompare(String(x.Datum)); });
 }
 function weegVir(a, n) {

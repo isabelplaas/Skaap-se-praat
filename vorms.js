@@ -51,7 +51,8 @@ function produkteVir(a, program) {
 const VORM_TITELS = { byvoeg: 'Skaap byvoeg', lam: 'Nuwe lam', spuit: 'Spuit', siek: 'Siek skaap', weeg: 'Weeg', nota: 'Nota',
   uit: 'Dood of verkoop', verkoop: 'Verkoop', skuif: 'Skuif na ander groep', speen: 'Speen lam', gesond: 'Merk gesond',
   groepskuif: 'Skuif \'n groep', bestelling: 'Nuwe bestelling', bestelling_oop: 'Bestelling',
-  produk: 'Produk byvoeg', siekte: 'Siekte-inligting', seisoen_nota: 'Nota oor die seisoen', skenking: 'Skenking' };
+  produk: 'Produk byvoeg', siekte: 'Siekte-inligting', seisoen_nota: 'Nota oor die seisoen', skenking: 'Skenking',
+  skeer: 'Skeer', wolbaal: 'Wolbaal byvoeg', wol_stuur: 'Stuur wol na BKB' };
 
 // Die gewone volgende groep vir elke groep.
 const VOLGENDE_GROEP = { 'Ooi Lam by MA': 'Gespeende Ooi Lam', 'Hammel Lam by MA': 'Gespeende Hammel Lam',
@@ -87,7 +88,13 @@ const Vorms = {
       case 'lam': return Object.assign(v, { ma: d && !d.lam ? d.n : '', pa: '', seisoen: seisoenVir(vandag()), aantal: 1,
         l0_kondisie: 'Mooi', l0_groep: 'Ooi Lam by MA', droog: false, rekordNota: '' });
       case 'spuit': return Object.assign(v, { program: '', produk: '', wie: d ? 'Een dier' : 'Groep', groepe: [], nommer: d ? d.n : '', dosis: '', nota: '' });
-      case 'siek': return Object.assign(v, { wie: 'Een dier', nommer: d ? d.n : '', groep: '', probleem: '', aksie: '', status: 'Siek', produk: '', dosis: '' });
+      case 'siek': return Object.assign(v, { wie: 'Een dier', nommer: d ? d.n : '', groepe: [], probleem: '', aksie: '', status: 'Siek', produk: '', dosis: '' });
+      case 'skeer': return Object.assign(v, { groepe: [], aantal: '', nota: '' });
+      case 'wolbaal': {
+        const nr = a.wol.reduce(function (m, o) { return Math.max(m, getal(o['Baal Nr'])); }, 0) + 1;
+        return Object.assign(v, { tipe: 'Vag', ander: '', gewig: '', baal: String(nr), nota: '', reeks: true });
+      }
+      case 'wol_stuur': return Object.assign(v, { gekies: a.wol.filter(function (o) { return !o['Gestuur na BKB'] && o._r > 0; }).map(function (o) { return String(o._r); }) });
       case 'weeg': return Object.assign(v, { nommer: d ? d.n : '', gewig: '', rede: d && d.lam ? 'Speen' : 'Gewone weging', reeks: !d });
       case 'nota': return Object.assign(v, { nommer: d ? d.n : '', nota: '' });
       case 'uit': return Object.assign(v, { nommer: d ? d.n : '', tipe: 'Dood', rede: '', aanWie: '', prys: '', gewig: '', betaal: false });
@@ -190,7 +197,7 @@ const Vorms = {
         return '';
       case 'siek':
         if (v.wie === 'Een dier' && !bestaan(v.nommer)) return 'Kies \'n dier wat in die kudde is.';
-        if (v.wie === 'Groep' && !v.groep) return 'Kies die groep.';
+        if (v.wie === 'Groep' && !v.groepe.length) return 'Merk ten minste een groep.';
         if (!v.probleem.trim()) return 'Beskryf die probleem of simptome.';
         if (v.dosis !== '' && isNaN(syfer(v.dosis))) return 'Dosis moet \'n getal wees.';
         return '';
@@ -226,6 +233,17 @@ const Vorms = {
         return '';
       case 'speen':
         if (v.gewig !== '' && !(syfer(v.gewig) > 0)) return 'Gewig moet \'n getal wees.';
+        return '';
+      case 'skeer':
+        if (!v.groepe.length) return 'Merk ten minste een groep.';
+        if (v.aantal !== '' && !(syfer(v.aantal) >= 0)) return 'Aantal moet \'n getal wees.';
+        return '';
+      case 'wolbaal':
+        if (v.tipe === 'Ander' && !v.ander.trim()) return 'Tik die tipe wol in.';
+        if (!(syfer(v.gewig) > 0)) return 'Tik die baal se gewig in kg in.';
+        return '';
+      case 'wol_stuur':
+        if (!v.gekies.length) return 'Merk ten minste een baal.';
         return '';
       case 'produk': {
         if (!v.program) return 'Kies die program.';
@@ -269,7 +287,7 @@ const Vorms = {
           const k = v['l' + i + '_kondisie'];
           const dood = k === 'Dood gebore' || k === 'Aborteer';
           let probleem = v['l' + i + '_verwerp'] && !dood ? 'Verwerp lam' : '';
-          if (!probleem && !droogGebruik) { probleem = 'Droog (geen melk)'; droogGebruik = true; }
+          if (!droogGebruik && !dood) { probleem = probleem ? 'Verwerp lam + Droog' : 'Droog (geen melk)'; droogGebruik = true; }
           lammers.push({ nommer: dood ? '' : sleutelVan(v['l' + i + '_nommer']), groep: dood ? '' : v['l' + i + '_groep'], kondisie: k, nota: v['l' + i + '_nota'] || '', probleem: probleem });
         }
         if (!droogGebruik && lammers.length) lammers[0].probleem = lammers[0].probleem ? lammers[0].probleem : 'Droog (geen melk)';
@@ -288,13 +306,34 @@ const Vorms = {
         return;
       }
       case 'siek': {
-        const diere = v.wie === 'Een dier' ? [n] : (v.groep === 'Alle groepe' ? aktieweDiere(a) : inGroepe(a, [v.groep])).map(function (d) { return d.n; });
-        voegBewerkingBy('siek', { datum: v.datum, nommer: v.wie === 'Een dier' ? n : '', groep: v.wie === 'Groep' ? v.groep : '',
-          probleem: v.probleem.trim(), aksie: v.aksie, status: v.status, produk: v.produk, dosis: syfer(v.dosis), diere: v.produk ? diere : [] });
-        boodskap(v.wie === 'Een dier' ? 'Dankie dat jy na my kyk.' : 'Aangeteken vir ' + v.groep + '.');
+        const doel = v.wie === 'Een dier' ? [''] : v.groepe.slice();
+        doel.forEach(function (g) {
+          const diere = v.wie === 'Een dier' ? [n] : inGroepe(a, [g]).map(function (d) { return d.n; });
+          voegBewerkingBy('siek', { datum: v.datum, nommer: v.wie === 'Een dier' ? n : '', groep: g,
+            probleem: v.probleem.trim(), aksie: v.aksie, status: v.status, produk: v.produk, dosis: syfer(v.dosis), diere: v.produk ? diere : [] });
+        });
+        boodskap(v.wie === 'Een dier' ? 'Dankie dat jy na my kyk.' : 'Aangeteken vir ' + v.groepe.join(', ') + '.');
         App.terug();
         return;
       }
+      case 'skeer':
+        voegBewerkingBy('skeer', { datum: v.datum, groepe: v.groepe.slice(), aantal: syfer(v.aantal === '' ? inGroepe(a, v.groepe).length : v.aantal), nota: v.nota.trim() });
+        boodskap('Skeer aangeteken. Ons voel sommer lig! Mê!');
+        App.terug();
+        return;
+      case 'wolbaal': {
+        const tipe = v.tipe === 'Ander' ? v.ander.trim() : v.tipe;
+        voegBewerkingBy('wolbaal', { datum: v.datum, tipe: tipe, gewig: syfer(v.gewig), baal: v.baal, nota: v.nota.trim() });
+        boodskap('Baal ' + v.baal + ' (' + tipe + ', ' + syferTeks(syfer(v.gewig)) + ' kg) aangeteken.');
+        if (v.reeks) { v.baal = String(getal(v.baal) + 1); v.gewig = ''; v.nota = ''; p.fokus = 'v-gewig'; App.herteken(); }
+        else App.terug();
+        return;
+      }
+      case 'wol_stuur':
+        voegBewerkingBy('wol_gestuur', { datum: v.datum, rye: v.gekies.map(Number) });
+        boodskap(v.gekies.length + (v.gekies.length === 1 ? ' baal' : ' bale') + ' as gestuur na BKB gemerk.');
+        App.terug();
+        return;
       case 'weeg':
         voegBewerkingBy('weeg', { datum: v.datum, nommer: n, gewig: syfer(v.gewig), rede: v.rede });
         boodskap(n + ': ' + syferTeks(syfer(v.gewig)) + ' kg aangeteken.');
@@ -464,7 +503,7 @@ Skerms.vorm = function (p) {
       if (v.wie === 'Een dier') lyf += dierVeld('nommer', v.nommer);
       else {
         const tel = inGroepe(a, v.groepe).length;
-        lyf += etiket('Groepe') + kiesKnoppies('groepe', v.groepe, GROEPE) +
+        lyf += etiket('Groepe') + kiesKnoppies('groepe', v.groepe, SPUIT_GROEPE) +
           '<div class="hulp">' + tel + (tel === 1 ? ' dier' : ' diere') + ' in die gemerkte groepe' + (inf ? ' · vooraf gemerk uit die spuitprogram' : '') + '</div></div>';
       }
       lyf += getalVeld('dosis', v.dosis, 'Dosis per dier', 'ml', inf && inf.groepe.length ? inf.groepe.map(function (g) { return g + ': ' + (inf.dosisse[g] || '?'); }).join(', ') : '');
@@ -476,7 +515,10 @@ Skerms.vorm = function (p) {
     case 'siek':
       lyf += datumVeld('datum', v.datum);
       lyf += etiket('Wie is siek?') + kiesKnoppies('wie', v.wie, ['Een dier', 'Groep']) + '</div>';
-      lyf += v.wie === 'Een dier' ? dierVeld('nommer', v.nommer) : keuseVeld('groep', v.groep, 'Groep', ['Alle groepe'].concat(GROEPE), 'Kies groep');
+      if (v.wie === 'Een dier') lyf += dierVeld('nommer', v.nommer);
+      else { const tel = inGroepe(a, v.groepe).length;
+        lyf += etiket('Groepe (merk soveel as nodig)') + kiesKnoppies('groepe', v.groepe, ['Alle groepe'].concat(SPUIT_GROEPE)) +
+          '<div class="hulp">' + tel + (tel === 1 ? ' dier' : ' diere') + ' in die gemerkte groepe · elke groep kry sy eie rekord</div></div>'; }
       lyf += teksVeld('probleem', v.probleem, 'Probleem of simptome', 'bv. hoes, mank, eet nie', true);
       lyf += teksVeld('aksie', v.aksie, 'Wat is gedoen?', 'bv. geïsoleer, veearts gebel');
       lyf += etiket('Status') + kiesKnoppies('status', v.status, ['Siek', 'Onder behandeling']) + '</div>';
@@ -600,6 +642,35 @@ Skerms.vorm = function (p) {
       lyf += teksVeld('nota', v.nota, 'Nota', 'bv. Baie tweelinge, koue nagte in Sep', true);
       break;
 
+    case 'skeer': {
+      const tel = inGroepe(a, v.groepe).length;
+      lyf += datumVeld('datum', v.datum, 'Datum geskeer');
+      lyf += etiket('Watter groepe is geskeer?') + kiesKnoppies('groepe', v.groepe, ALLE_GROEPE) + '</div>';
+      lyf += getalVeld('aantal', v.aantal, 'Aantal geskeer', '', String(tel));
+      lyf += '<div class="hulp" style="margin-top:-8px">' + tel + (tel === 1 ? ' dier' : ' diere') + ' in die gemerkte groepe. Los leeg om dit te gebruik.</div>';
+      lyf += teksVeld('nota', v.nota, 'Nota', 'bv. skeerder, kontrakprys', true);
+      break;
+    }
+
+    case 'wolbaal':
+      lyf += '<div class="twee">' + datumVeld('datum', v.datum) + teksVeld('baal', v.baal, 'Baal nr', '') + '</div>';
+      lyf += etiket('Tipe wol') + kiesKnoppies('tipe', v.tipe, WOLTIPES.concat(['Ander'])) + '</div>';
+      if (v.tipe === 'Ander') lyf += teksVeld('ander', v.ander, 'Watter tipe?', 'bv. Kort wol');
+      lyf += getalVeld('gewig', v.gewig, 'Gewig', 'kg', 'bv. 165');
+      lyf += teksVeld('nota', v.nota, 'Nota', 'Opsioneel');
+      lyf += skakelVeld('reeks', v.reeks, 'Bly op hierdie skerm vir die volgende baal');
+      break;
+
+    case 'wol_stuur': {
+      const oop = a.wol.filter(function (o) { return !o['Gestuur na BKB']; });
+      lyf += datumVeld('datum', v.datum, 'Datum gestuur na BKB');
+      lyf += '<div class="veld"><span class="etiket">Watter bale is gestuur? (' + v.gekies.length + ')</span>' +
+        (oop.length ? kiesKnoppies('gekies', v.gekies, oop.filter(function (o) { return o._r > 0; }).map(function (o) {
+          return { w: String(o._r), t: 'Baal ' + (o['Baal Nr'] || '?') + ' · ' + o['Tipe wol'] + ' · ' + syferTeks(o['Gewig (kg)']) + ' kg' }; })) : '<div class="hulp">Geen bale wag om gestuur te word nie.</div>') +
+        (oop.some(function (o) { return !(o._r > 0); }) ? '<div class="hulp">Bale wat nog nie in die sheet gestoor is nie, kan eers gemerk word sodra daar sein was.</div>' : '') + '</div>';
+      break;
+    }
+
     case 'skenking':
       lyf += '<div class="inligting"><i class="ti ti-gift"></i><span>Die skaap word as <b>Geskenk</b> uit die kudde gehaal. Sy geskiedenis bly bewaar.</span></div>';
       lyf += dierVeld('nommer', v.nommer);
@@ -610,7 +681,7 @@ Skerms.vorm = function (p) {
       break;
   }
 
-  const knopTeks = t === 'weeg' && v.reeks ? 'Stoor en volgende' : t === 'bestelling_oop' ? 'Stoor' : 'Stoor';
+  const knopTeks = (t === 'weeg' || t === 'wolbaal') && v.reeks ? 'Stoor en volgende' : t === 'bestelling_oop' ? 'Stoor' : 'Stoor';
   return kop(VORM_TITELS[t] || 'Vorm', t === 'bestelling_oop' ? v.naam : v.nommer && ['byvoeg', 'lam', 'weeg'].indexOf(t) < 0 ? 'Skaap ' + v.nommer : '') +
     '<div class="inhoud"><div class="vorm">' + foutBlok(p.fout) + lyf +
     '<button class="knop" data-a="stoor"><i class="ti ti-check"></i> ' + knopTeks + '</button></div></div>';

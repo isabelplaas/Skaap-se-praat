@@ -232,6 +232,7 @@ Skerms.tuis = function (p) {
     ['vorm', 'byvoeg', 'square-plus', 'Skaap byvoeg', ''],
     ['vorm', 'groepskuif', 'arrows-exchange', 'Skuif \'n groep', ''],
     ['vorm', 'bestelling', 'clipboard-list', 'Bestelling', 'oranje'],
+    ['gaan', 'skeerblad', 'scissors', 'Skeer en wol', ''],
   ];
   if (isEienaar()) aksieKnoppies.push(['gaan', 'verkoopblad', 'cash', 'Verkoop', 'grys']);
 
@@ -310,7 +311,7 @@ Skerms.tuis = function (p) {
 };
 
 function bestellingRy(o) {
-  return '<button class="lys-ry" data-a="bestelling" data-w="' + o._r + '" data-k="' + esc(o.Naam) + '">' +
+  return '<button class="lys-ry" ' + (o._r > 0 ? 'data-a="bestelling" data-w="' + o._r + '" data-k="' + esc(o.Naam) + '"' : '') + '>' +
     '<span class="nommer" style="background:var(--oranje-lig);color:var(--oranje-donker)">' + esc(o.Aantal || '?') + '</span>' +
     '<span class="hoof"><b>' + esc(o.Naam) + '</b><div class="s">' + esc([o.Wat, mooiDatum(o['Benodig Op'])].filter(Boolean).join(' · ')) + '</div></span>' +
     bestellingPil(o) + '<i class="ti ti-chevron-right"></i></button>';
@@ -397,6 +398,18 @@ Skerms.dier = function (p) {
     return '<div class="feit"><div class="e">' + esc(f[0]) + '</div><div class="w">' + esc(f[1]) + '</div></div>';
   }).join('') + '</div>';
 
+  // Lam by die ma: merk of die ma die lam verwerp het of droog is (vlag die ooi dadelik).
+  if (d.lam && d.aktief && d.ma) {
+    const lr = a.lam.find(function (o) { return gelyk(o['Lam Nommer'], d.n); });
+    const pr = lr ? String(lr['Ooi Probleem'] || '') : '';
+    const vw = pr.indexOf('Verwerp') >= 0, dr = pr.indexOf('Droog') >= 0;
+    const skakel = function (w, aan, teks) {
+      return '<div class="skakel ' + (aan ? 'aan' : '') + '" data-a="ma-probleem" data-w="' + w + '" data-n="' + esc(d.n) + '"><span>' + teks + '</span><span class="sw"></span></div>';
+    };
+    html += '<div class="titel">Ma ' + esc(d.ma) + ' <small>die ooi word dadelik gevlag</small></div>' +
+      '<div class="vorm" style="gap:8px">' + skakel('verwerp', vw, 'Ma het hierdie lam verwerp') + skakel('droog', dr, 'Ma is droog (geen melk)') + '</div>';
+  }
+
   const ont = d.aktief ? onttrekkingTot(a, d.n) : '';
   if (ont) html += '<div class="inligting rooi" style="margin-top:10px"><i class="ti ti-alert-triangle"></i><span>Onttrekkingsperiode: nie slag of verkoop voor ' + mooiDatum(ont) + ' nie.</span></div>';
   if (d.nieGelam) html += '<div class="inligting oranje" style="margin-top:10px"><i class="ti ti-flag"></i><span>Nie gelam in die afgelope 12 maande nie (' + esc(d.nieGelam.toLowerCase()) + '). Oorweeg om haar na <b>Om te verkoop</b> te skuif.</span></div>';
@@ -414,7 +427,7 @@ Skerms.dier = function (p) {
     return '<div class="rek"><div class="bo"><b>' + esc(o['Probleem/Simptome'] || 'Siek') + '</b><span class="dt">' + mooiDatum(o.Datum) + '</span></div>' +
       '<div class="s">' + esc([o.Status, o.Aksie, o['Produk gespuit'], sleutelVan(o.Nommer) ? '' : (o.Groep ? 'Groep: ' + o.Groep : ''),
         o['Gesond/Dood Datum'] ? (o.Status === 'Dood' ? 'Dood ' : 'Gesond ') + kortDatum(o['Gesond/Dood Datum']) : ''].filter(Boolean).join(' · ')) + '</div>' +
-      (oop && o._r && sleutelVan(o.Nommer) ? '<button class="knop-klein" data-a="gesond" data-w="' + o._r + '" data-n="' + esc(d.n) + '"><i class="ti ti-heart"></i> Merk gesond</button>' : '') + '</div>';
+      (oop && o._r > 0 && sleutelVan(o.Nommer) ? '<button class="knop-klein" data-a="gesond" data-w="' + o._r + '" data-n="' + esc(d.n) + '"><i class="ti ti-heart"></i> Merk gesond</button>' : '') + '</div>';
   });
   if (!d.lam && d.geslag === 'Ooi') {
     html += afdeling('Lammers', d.lammers.slice().sort(function (x, y) { return String(y['Geboorte Datum']).localeCompare(String(x['Geboorte Datum'])); }), function (o) {
@@ -527,6 +540,20 @@ document.addEventListener('click', function (e) {
     case 'ls-kies': h.p.s = w; App.herteken(); break;
     case 'st-jaar': h.p.jaar = w; App.herteken(); break;
     case 'vk-oortjie': h.p.oortjie = w; App.herteken(); break;
+    case 'ma-probleem': {
+      const a = Afgelei.get();
+      const lr = a.lam.find(function (o) { return gelyk(o['Lam Nommer'], el.dataset.n); });
+      if (!lr) break;
+      const pr = String(lr['Ooi Probleem'] || '');
+      let vw = pr.indexOf('Verwerp') >= 0, dr = pr.indexOf('Droog') >= 0;
+      if (w === 'verwerp') vw = !vw; else dr = !dr;
+      const nuut = vw && dr ? 'Verwerp lam + Droog' : vw ? 'Verwerp lam' : dr ? 'Droog (geen melk)' : '';
+      voegBewerkingBy('lam_probleem', { ry: lr._r, nommer: el.dataset.n, probleem: nuut });
+      const ma = sleutelVan(lr['Ma Nommer']);
+      boodskap(nuut ? 'Ooi ' + ma + ' is gevlag: ' + nuut.toLowerCase() + '.' : 'Vlag vir ooi ' + ma + ' is verwyder.');
+      App.herteken();
+      break;
+    }
     case 'siekte-wysig': App.gaan('vorm', { tipe: 'siekte', vorm: Vorms.begin('siekte', w) }); break;
     case 'vorm': App.gaan('vorm', { tipe: w, vorm: Vorms.begin(w, el.dataset.n) }); break;
     case 'filter': h.p.filter = w; App.herteken(); break;

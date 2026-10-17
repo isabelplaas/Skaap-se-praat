@@ -307,7 +307,8 @@ Skerms.siekgroep = function (p) {
   ].concat(o['Gesond/Dood Datum'] ? [[o.Status === 'Dood' ? 'Dood op' : 'Gesond op', mooiDatum(o['Gesond/Dood Datum'])]] : []).map(function (f) {
     return '<div class="feit"><div class="e">' + esc(f[0]) + '</div><div class="w">' + esc(f[1]) + '</div></div>';
   }).join('') + '</div>';
-  if (oop) html += '<button class="knop" style="margin-top:12px" data-a="gesond" data-w="' + o._r + '" data-g="' + esc(groep) + '"><i class="ti ti-heart"></i> Merk die groep gesond</button>';
+  if (oop && o._r > 0) html += '<button class="knop" style="margin-top:12px" data-a="gesond" data-w="' + o._r + '" data-g="' + esc(groep) + '"><i class="ti ti-heart"></i> Merk die groep gesond</button>';
+  else if (oop) html += '<div class="inligting oranje" style="margin-top:12px"><i class="ti ti-cloud-upload"></i><span>Hierdie rekord wag nog om na die sheet gestuur te word. Jy kan dit gesond merk sodra dit gestoor is.</span></div>';
   html += afdeling('Spuit', spuit, function (s) {
     return '<div class="rek"><div class="bo"><b>' + esc(s.Produk) + '</b><span class="dt">' + mooiDatum(s.Datum) + '</span></div>' +
       '<div class="s">' + esc([s.Program, s['Dosis (ml)'] !== '' && s['Dosis (ml)'] !== undefined ? syferTeks(s['Dosis (ml)']) + ' ml' : '', s['Aantal diere'] ? s['Aantal diere'] + ' diere' : '', s.Nota].filter(Boolean).join(' · ')) + '</div></div>';
@@ -359,7 +360,7 @@ Skerms.siektes = function (p) {
     const veld = function (t, w) { return w ? '<div style="margin-top:8px"><div class="e" style="font-size:12px;color:var(--teks-2)">' + t + '</div><div style="font-size:15px;white-space:pre-wrap">' + esc(w) + '</div></div>' : ''; };
     return '<div class="kaart"><div style="display:flex;align-items:center;gap:8px"><b style="font-size:17px;flex:1">' + esc(o.Siekte) + '</b>' +
       (o.Seisoen ? '<span class="pil oranje">' + esc(o.Seisoen) + '</span>' : '') +
-      '<button class="knop-klein" data-a="siekte-wysig" data-w="' + o._r + '"><i class="ti ti-pencil"></i></button></div>' +
+      (o._r > 0 ? '<button class="knop-klein" data-a="siekte-wysig" data-w="' + o._r + '"><i class="ti ti-pencil"></i></button>' : '') + '</div>' +
       veld('Simptome', o.Simptome) + veld('Spuitstof voorstelle', o['Spuitstof voorstelle']) + veld('Nota', o.Nota) + '</div>';
   }).join('') : '<div class="lys"><div class="leeg">' + (q ? 'Niks gevind nie.' : 'Nog geen siektes nie. Voeg die eerste een by.') + '</div></div>') + '</div>';
   return html + '</div>';
@@ -395,5 +396,47 @@ Skerms.verkoopblad = function (p) {
         '<div class="s">' + esc([mooiDatum(o.Datum), o.Rede, o.Nota].filter(Boolean).join(' · ')) + '</div></span><i class="ti ti-chevron-right"></i></button>';
     }).join('') : '<div class="leeg">Nog geen skenkings nie.</div>') + '</div>';
   }
+  return html + '</div>';
+};
+
+/* ---------- Skeer en wol ---------- */
+
+Skerms.skeerblad = function (p) {
+  const a = Afgelei.get();
+  const jaar = vandag().slice(0, 4);
+  const hierdie = a.skeer.filter(function (o) { return String(o.Datum).slice(0, 4) === jaar; });
+  const geskeer = hierdie.reduce(function (t, o) { return t + getal(o['Aantal geskeer']); }, 0);
+  const oop = a.wol.filter(function (o) { return !o['Gestuur na BKB']; });
+  const kg = function (lys) { return lys.reduce(function (t, o) { return t + getal(o['Gewig (kg)']); }, 0); };
+  // Totale per tipe wol: op die plaas en gestuur
+  const tipes = {};
+  a.wol.forEach(function (o) {
+    const t = o['Tipe wol'] || 'Onbekend';
+    tipes[t] = tipes[t] || { bale: 0, kg: 0, oopBale: 0, oopKg: 0 };
+    tipes[t].bale++; tipes[t].kg += getal(o['Gewig (kg)']);
+    if (!o['Gestuur na BKB']) { tipes[t].oopBale++; tipes[t].oopKg += getal(o['Gewig (kg)']); }
+  });
+  let html = kop('Skeer en wol', 'Skeerdatums, wolbale en BKB') + '<div class="inhoud">';
+  html += '<div class="rooster drie">' + statTeel('Geskeer ' + jaar, geskeer, hierdie.length + (hierdie.length === 1 ? ' keer' : ' keer')) +
+    statTeel('Bale op plaas', oop.length, syferTeks(kg(oop)) + ' kg') + statTeel('Wol totaal', syferTeks(kg(a.wol)), 'kg · ' + a.wol.length + ' bale') + '</div>';
+  html += '<div class="rooster" style="margin-top:12px">' +
+    '<button class="aksie" data-a="vorm" data-w="skeer">' + ikoon('scissors') + '<span class="n">Nuwe skeer</span></button>' +
+    '<button class="aksie" data-a="vorm" data-w="wolbaal">' + ikoon('package', 'oranje') + '<span class="n">Wolbaal byvoeg</span></button></div>';
+  if (oop.length) html += '<button class="knop" style="margin-top:10px" data-a="vorm" data-w="wol_stuur"><i class="ti ti-truck"></i> Stuur bale na BKB (' + oop.length + ' wag)</button>';
+
+  html += '<div class="titel">Wol per tipe</div><div class="lys">' + (Object.keys(tipes).length ? Object.keys(tipes).sort().map(function (t) {
+    const x = tipes[t];
+    return '<div class="lys-ry">' + ikoon('package', 'oranje') + '<span class="hoof"><b>' + esc(t) + '</b><div class="s">' + x.bale + (x.bale === 1 ? ' baal' : ' bale') + ' · ' + syferTeks(x.kg) + ' kg totaal</div></span>' +
+      (x.oopBale ? '<span class="pil oranje">' + x.oopBale + ' op plaas · ' + syferTeks(x.oopKg) + ' kg</span>' : '<span class="pil groen">Alles gestuur</span>') + '</div>';
+  }).join('') : '<div class="leeg">Nog geen wolbale nie.</div>') + '</div>';
+
+  html += afdeling('Skeer', a.skeer, function (o) {
+    return '<div class="rek"><div class="bo"><b>' + esc(o['Aantal geskeer'] !== '' ? o['Aantal geskeer'] + ' geskeer' : 'Geskeer') + '</b><span class="dt">' + mooiDatum(o.Datum) + '</span></div>' +
+      '<div class="s">' + esc([o.Groepe, o.Nota].filter(Boolean).join(' · ')) + '</div></div>';
+  });
+  html += afdeling('Wolbale', a.wol, function (o) {
+    return '<div class="rek"><div class="bo"><b>Baal ' + esc(o['Baal Nr'] || '?') + ' · ' + esc(o['Tipe wol']) + '</b><span class="dt">' + syferTeks(o['Gewig (kg)']) + ' kg</span></div>' +
+      '<div class="s">' + esc(['Gepak ' + mooiDatum(o.Datum), o['Gestuur na BKB'] ? 'Gestuur na BKB ' + mooiDatum(o['Gestuur na BKB']) : 'Nog op die plaas', o.Nota].filter(Boolean).join(' · ')) + '</div></div>';
+  });
   return html + '</div>';
 };
