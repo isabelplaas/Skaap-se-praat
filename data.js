@@ -236,6 +236,7 @@ function leegData() {
     Skenkings: ['Datum', 'Nommer', 'Aan Wie', 'Rede', 'Nota'],
     Skeer: ['Datum', 'Groepe', 'Aantal geskeer', 'Nota'],
     Wol: ['Datum', 'Tipe wol', 'Gewig (kg)', 'Baal Nr', 'Gestuur na BKB', 'Nota'],
+    Vlae: ['Datum', 'Nommer', 'Rede', 'Status', 'Opgehef Op'],
   };
   const d = {};
   Object.keys(kop).forEach(function (k) { d[k] = { kop: kop[k], rye: [] }; });
@@ -355,6 +356,12 @@ function pasPlaaslikToe(data, op) {
     case 'lam_probleem':
       stelWaarde(data, 'Lam', function (o) { return gelyk(o['Lam Nommer'], d.nommer); }, { 'Ooi Probleem': d.probleem });
       break;
+    case 'vlag':
+      voegRyBy(data, 'Vlae', { 'Datum': d.datum, 'Nommer': d.nommer, 'Rede': d.rede, 'Status': 'Aktief' });
+      break;
+    case 'vlag_ophef':
+      stelWaarde(data, 'Vlae', function (o) { return o._r === d.ry; }, { 'Status': 'Opgehef', 'Opgehef Op': d.datum });
+      break;
     case 'skeer':
       voegRyBy(data, 'Skeer', { 'Datum': d.datum, 'Groepe': (d.groepe || []).join(', '), 'Aantal geskeer': d.aantal, 'Nota': d.nota });
       break;
@@ -413,6 +420,8 @@ function bereken(data) {
   const siektes = tabel(data, 'Siektes').filter(function (o) { return o.Siekte; })
     .sort(function (x, y) { return String(x.Siekte).localeCompare(String(y.Siekte)); });
   const seisoene = seisoenDefinisies(tabel(data, 'Seisoene'));
+  const eieVlae = tabel(data, 'Vlae').filter(function (o) { return sleutelVan(o.Nommer) !== '' && o.Rede && (o.Status || 'Aktief') === 'Aktief'; })
+    .sort(function (x, y) { return String(y.Datum).localeCompare(String(x.Datum)); });
   const skeer = tabel(data, 'Skeer').filter(function (o) { return o.Datum; })
     .sort(function (x, y) { return String(y.Datum).localeCompare(String(x.Datum)); });
   const wol = tabel(data, 'Wol').filter(function (o) { return o['Tipe wol'] || o['Gewig (kg)']; })
@@ -469,6 +478,8 @@ function bereken(data) {
     d.aktief = !d.uit;
     d.lammers = lam.filter(function (o) { return gelyk(o['Ma Nommer'], d.n); });
     d.vlae = d.lammers.filter(function (o) { return o['Ooi Probleem']; }).map(function (o) { return o['Ooi Probleem']; });
+    d.eieVlae = eieVlae.filter(function (o) { return gelyk(o.Nommer, d.n); });
+    d.eieVlae.forEach(function (o) { d.vlae.push(o.Rede); });
     d.verwek = lam.filter(function (o) { return gelyk(o.Pa, d.n); }).length;
     // Outomatiese vlag: volwasse ooi wat in die afgelope 12 maande nie gelam het nie.
     d.nieGelam = '';
@@ -530,6 +541,19 @@ function inGroepe(a, groepe) { return aktieweDiere(a).filter(function (d) { retu
 function ooie(a) { return aktieweDiere(a).filter(function (d) { return !d.lam && d.geslag === 'Ooi'; }); }
 function ramme(a) { return aktieweDiere(a).filter(function (d) { return !d.lam && d.groep === 'Ram'; }); }
 
+// Ouderdom in volle jare (null as onbekend)
+function ouderdomJare(d) {
+  if (d.geboorte && naDatum(d.geboorte)) return Math.floor(dae(naDatum(d.geboorte), naDatum(d.datumUit || vandag())) / 365.25);
+  if (d.ouderdomJaar !== null && d.ouderdomJaar !== undefined && !isNaN(d.ouderdomJaar)) return d.ouderdomJaar;
+  return null;
+}
+function ouderdomKlas(d) {
+  const j = ouderdomJare(d);
+  if (j === null) return 'Onbekend';
+  if (j < 1) return '< 1 jaar';
+  if (j >= 6) return '6+ jaar';
+  return j + ' jaar';
+}
 function ouderdomTeks(d) {
   if (d.geboorte) {
     const dg = dae(naDatum(d.geboorte), naDatum(d.datumUit || vandag()));

@@ -52,7 +52,7 @@ const VORM_TITELS = { byvoeg: 'Skaap byvoeg', lam: 'Nuwe lam', spuit: 'Spuit', s
   uit: 'Dood of verkoop', verkoop: 'Verkoop', skuif: 'Skuif na ander groep', speen: 'Speen lam', gesond: 'Merk gesond',
   groepskuif: 'Skuif \'n groep', bestelling: 'Nuwe bestelling', bestelling_oop: 'Bestelling',
   produk: 'Produk byvoeg', siekte: 'Siekte-inligting', seisoen_nota: 'Nota oor die seisoen', skenking: 'Skenking',
-  skeer: 'Skeer', wolbaal: 'Wolbaal byvoeg', wol_stuur: 'Stuur wol na BKB' };
+  skeer: 'Skeer', wolbaal: 'Wolbaal byvoeg', wol_stuur: 'Stuur wol na BKB', vlag: 'Vlag die skaap', vlag_ophef: 'Hef vlag op' };
 
 // Die gewone volgende groep vir elke groep.
 const VOLGENDE_GROEP = { 'Ooi Lam by MA': 'Gespeende Ooi Lam', 'Hammel Lam by MA': 'Gespeende Hammel Lam',
@@ -78,6 +78,8 @@ function lamSeisoenOpsies(a, huidig) {
   return name;
 }
 
+const VLAG_REDES = ['Slegte uier', 'Kreupel / pote', 'Swak kondisie', 'Tande', 'Herhaaldelik siek', 'Moeilike geboorte', 'Aggressief'];
+
 const Vorms = {
   begin(tipe, n) {
     const a = Afgelei.get();
@@ -90,6 +92,7 @@ const Vorms = {
       case 'spuit': return Object.assign(v, { program: '', produk: '', wie: d ? 'Een dier' : 'Groep', groepe: [], nommer: d ? d.n : '', dosis: '', nota: '' });
       case 'siek': return Object.assign(v, { wie: 'Een dier', nommer: d ? d.n : '', groepe: [], probleem: '', aksie: '', status: 'Siek', produk: '', dosis: '' });
       case 'skeer': return Object.assign(v, { groepe: [], aantal: '', nota: '' });
+      case 'vlag': return Object.assign(v, { nommer: d ? d.n : '', keuse: '', rede: '' });
       case 'wolbaal': {
         const nr = a.wol.reduce(function (m, o) { return Math.max(m, getal(o['Baal Nr'])); }, 0) + 1;
         return Object.assign(v, { tipe: 'Vag', ander: '', gewig: '', baal: String(nr), nota: '', reeks: true });
@@ -234,6 +237,12 @@ const Vorms = {
       case 'speen':
         if (v.gewig !== '' && !(syfer(v.gewig) > 0)) return 'Gewig moet \'n getal wees.';
         return '';
+      case 'vlag':
+        if (!bestaan(v.nommer)) return 'Kies \'n dier wat in die kudde is.';
+        if (!(v.keuse === 'Ander' ? v.rede.trim() : (v.keuse || v.rede.trim()))) return '\'n Vlag moet altyd \'n rede hê. Kies of tik die rede.';
+        return '';
+      case 'vlag_ophef':
+        return '';
       case 'skeer':
         if (!v.groepe.length) return 'Merk ten minste een groep.';
         if (v.aantal !== '' && !(syfer(v.aantal) >= 0)) return 'Aantal moet \'n getal wees.';
@@ -316,6 +325,18 @@ const Vorms = {
         App.terug();
         return;
       }
+      case 'vlag': {
+        const rede = [v.keuse === 'Ander' ? '' : v.keuse, v.rede.trim()].filter(Boolean).join(': ');
+        voegBewerkingBy('vlag', { datum: v.datum, nommer: n, rede: rede });
+        boodskap(n + ' is gevlag: ' + rede + '.');
+        App.terug();
+        return;
+      }
+      case 'vlag_ophef':
+        voegBewerkingBy('vlag_ophef', { ry: v.ry, nommer: v.nommer, datum: v.datum });
+        boodskap('Vlag vir ' + v.nommer + ' is opgehef.');
+        App.terug();
+        return;
       case 'skeer':
         voegBewerkingBy('skeer', { datum: v.datum, groepe: v.groepe.slice(), aantal: syfer(v.aantal === '' ? inGroepe(a, v.groepe).length : v.aantal), nota: v.nota.trim() });
         boodskap('Skeer aangeteken. Ons voel sommer lig! Mê!');
@@ -640,6 +661,19 @@ Skerms.vorm = function (p) {
       lyf += '<div class="inligting"><i class="ti ti-baby-carriage"></i><span>Nota oor lamseisoen <b>' + esc(v.seisoen) + '</b>.</span></div>';
       lyf += datumVeld('datum', v.datum);
       lyf += teksVeld('nota', v.nota, 'Nota', 'bv. Baie tweelinge, koue nagte in Sep', true);
+      break;
+
+    case 'vlag':
+      lyf += dierVeld('nommer', v.nommer);
+      lyf += datumVeld('datum', v.datum);
+      lyf += etiket('Rede vir die vlag') + kiesKnoppies('keuse', v.keuse, VLAG_REDES.concat(['Ander'])) + '</div>';
+      lyf += teksVeld('rede', v.rede, v.keuse && v.keuse !== 'Ander' ? 'Meer besonderhede (opsioneel)' : 'Rede', 'bv. linker uier hard', true);
+      lyf += '<div class="hulp" style="margin-top:-8px">\'n Vlag moet altyd \'n rede hê. Die vlag bly tot jy dit ophef.</div>';
+      break;
+
+    case 'vlag_ophef':
+      lyf += '<div class="inligting"><i class="ti ti-flag"></i><span>Vlag vir ' + esc(v.nommer) + ': <b>' + esc(v.rede) + '</b></span></div>';
+      lyf += datumVeld('datum', v.datum, 'Opgehef op');
       break;
 
     case 'skeer': {

@@ -140,8 +140,16 @@ function kiesKnoppies(veld, waarde, opsies, ekstraKlas) {
 }
 
 function datumVeld(veld, waarde, etiket) {
+  // Die kalender se formaat (mm/dd of dd/mm) kom van die toestel se taal; daarom wys ons die datum ook duidelik in woorde.
   return '<div class="veld"><label for="v-' + veld + '">' + (etiket || 'Datum') + '</label>' +
-    '<input class="inv" type="date" id="v-' + veld + '" data-v="' + veld + '" value="' + esc(waarde || '') + '" max="' + vandag() + '"></div>';
+    '<input class="inv" type="date" id="v-' + veld + '" data-v="' + veld + '" data-her="1" value="' + esc(waarde || '') + '" max="' + vandag() + '">' +
+    (waarde ? '<div class="hulp"><b>' + esc(langDatum(waarde)) + '</b></div>' : '') + '</div>';
+}
+function langDatum(s) {
+  const d = naDatum(s);
+  if (!d) return '';
+  const dae = ['Sondag', 'Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrydag', 'Saterdag'];
+  return dae[d.getDay()] + ' ' + d.getDate() + ' ' + ['Januarie', 'Februarie', 'Maart', 'April', 'Mei', 'Junie', 'Julie', 'Augustus', 'September', 'Oktober', 'November', 'Desember'][d.getMonth()] + ' ' + d.getFullYear();
 }
 
 function dierVeld(veld, waarde, etiket, opsies) {
@@ -299,7 +307,7 @@ Skerms.tuis = function (p) {
     (nieGelam.length ? '<div class="titel">Nie gelam in 12 maande <small>' + nieGelam.length + ' ooie · oorweeg uitskot</small></div><div class="lys">' +
       nieGelam.slice(0, 10).map(function (d) { return dierRy(d, '<span class="pil oranje">' + esc(d.nieGelam) + '</span>'); }).join('') +
       (nieGelam.length > 10 ? '<button class="lys-ry" data-a="kudde-filter" data-w="Nie gelam"><span class="hoof">Sien al ' + nieGelam.length + '</span><i class="ti ti-chevron-right"></i></button>' : '') + '</div>' : '') +
-    (vlae ? '<div class="titel">Ooie met \'n vlag</div><div class="lys">' + akt.filter(function (d) { return d.vlae.length; }).slice(0, 6).map(function (d) {
+    (vlae ? '<div class="titel">Diere met \'n vlag</div><div class="lys">' + akt.filter(function (d) { return d.vlae.length; }).slice(0, 6).map(function (d) {
       return dierRy(d, '<span class="pil oranje">' + esc(d.vlae[0]) + '</span>');
     }).join('') + '</div>' : '') +
     (a.opeBestellings.length ? '<div class="titel">Bestellings <small>' + a.opeBestellings.length + ' oop</small></div><div class="lys">' +
@@ -340,13 +348,23 @@ Skerms.kudde = function (p) {
   else if (f === 'Gereed') lys = lys.filter(function (d) { return d.gereed === 'Gereed'; });
   else if (ALLE_GROEPE.indexOf(f) >= 0) lys = lys.filter(function (d) { return d.groep === f; });
   if (q) lys = lys.filter(function (d) { return d.n.toLowerCase().indexOf(q) === 0; });
+  // Ouderdom-filter (werk saam met die groep-filter hierbo)
+  const oud = p.oud || 'Alle';
+  const voorOud = lys;
+  if (oud !== 'Alle') lys = lys.filter(function (d) { return ouderdomKlas(d) === oud; });
+  const oudKlasse = ['Alle', '< 1 jaar', '1 jaar', '2 jaar', '3 jaar', '4 jaar', '5 jaar', '6+ jaar', 'Onbekend'];
+  const oudTel = {};
+  voorOud.forEach(function (d) { const k = ouderdomKlas(d); oudTel[k] = (oudTel[k] || 0) + 1; });
   const filters = ['Alle', 'Siek', 'Lammers', 'Vlag', 'Nie gelam', 'Gereed'].concat(ALLE_GROEPE).concat(['Uit']);
   return '<div class="kop"><div class="kop-ry"><h1>Kudde</h1><button class="knop-klein" style="margin-left:auto;background:#fff" data-a="vorm" data-w="byvoeg"><i class="ti ti-square-plus"></i> Skaap byvoeg</button></div>' +
     '<div class="soek"><i class="ti ti-search"></i><input id="kudde-q" data-a="kudde-soek" inputmode="numeric" autocomplete="off" placeholder="Soek nommer" value="' + esc(p.q || '') + '"></div></div>' +
     '<div class="inhoud"><div class="skyfies">' + filters.map(function (x) {
       return '<button class="skyf ' + (x === f ? 'aan' : '') + '" data-a="filter" data-w="' + esc(x) + '">' + esc(x === 'Uit' ? 'Dood/verkoop/geskenk' : x) + '</button>';
     }).join('') + '</div>' +
-    '<div class="titel" style="margin-top:4px">' + lys.length + (lys.length === 1 ? ' dier' : ' diere') + '</div>' +
+    '<div class="skyfies" style="padding-top:0"><span style="align-self:center;font-size:13px;color:var(--teks-2);flex-shrink:0">Ouderdom:</span>' + oudKlasse.filter(function (k) { return k === 'Alle' || oudTel[k] || k === oud; }).map(function (k) {
+      return '<button class="skyf ' + (k === oud ? 'aan' : '') + '" data-a="oud-filter" data-w="' + esc(k) + '">' + esc(k) + (k !== 'Alle' && oudTel[k] ? ' (' + oudTel[k] + ')' : '') + '</button>';
+    }).join('') + '</div>' +
+    '<div class="titel" style="margin-top:4px">' + lys.length + (lys.length === 1 ? ' dier' : ' diere') + (f !== 'Alle' || oud !== 'Alle' ? ' <small>' + esc([f !== 'Alle' ? f : '', oud !== 'Alle' ? oud : ''].filter(Boolean).join(' · ')) + '</small>' : '') + '</div>' +
     '<div class="lys">' + (lys.length ? lys.slice(0, 300).map(function (d) { return dierRy(d); }).join('') : '<div class="leeg">Geen diere hier nie.</div>') + '</div></div>';
 };
 
@@ -382,6 +400,7 @@ Skerms.dier = function (p) {
     else snel.push(['skuif', 'arrows-exchange', 'Groep']);
     if (!d.lam && d.geslag === 'Ooi') snel.push(['lam', 'baby-carriage', 'Lam']);
     if (d.groep === 'Om te verkoop') snel.unshift(d.gereed === 'Gereed' ? ['nie-gereed', 'flag', 'Nie gereed'] : ['gereed', 'check', 'Gereed']);
+    snel.push(['vlag', 'flag', 'Vlag']);
     snel.push(['uit', 'door-exit', 'Dood/Verkoop']);
   } else snel.push(['nota', 'notes', 'Nota']);
 
@@ -413,7 +432,12 @@ Skerms.dier = function (p) {
   const ont = d.aktief ? onttrekkingTot(a, d.n) : '';
   if (ont) html += '<div class="inligting rooi" style="margin-top:10px"><i class="ti ti-alert-triangle"></i><span>Onttrekkingsperiode: nie slag of verkoop voor ' + mooiDatum(ont) + ' nie.</span></div>';
   if (d.nieGelam) html += '<div class="inligting oranje" style="margin-top:10px"><i class="ti ti-flag"></i><span>Nie gelam in die afgelope 12 maande nie (' + esc(d.nieGelam.toLowerCase()) + '). Oorweeg om haar na <b>Om te verkoop</b> te skuif.</span></div>';
-  if (d.vlae.length) html += '<div class="inligting oranje" style="margin-top:10px"><i class="ti ti-flag"></i><span>' + esc(d.vlae.join(', ')) + '</span></div>';
+  const outoVlae = d.vlae.filter(function (x) { return !(d.eieVlae || []).some(function (o) { return o.Rede === x; }); });
+  if (outoVlae.length) html += '<div class="inligting oranje" style="margin-top:10px"><i class="ti ti-flag"></i><span>' + esc(outoVlae.join(', ')) + '</span></div>';
+  (d.eieVlae || []).forEach(function (o) {
+    html += '<div class="inligting oranje" style="margin-top:10px;align-items:center"><i class="ti ti-flag"></i><span style="flex:1"><b>' + esc(o.Rede) + '</b>' + (o.Datum ? ' · sedert ' + esc(kortDatum(o.Datum)) : '') + '</span>' +
+      (o._r > 0 ? '<button class="knop-klein" data-a="vlag-ophef" data-w="' + o._r + '" data-n="' + esc(d.n) + '">Hef op</button>' : '') + '</div>';
+  });
 
   html += afdeling('Notas', notas, function (o) {
     return '<div class="rek"><div class="bo"><span>' + esc(o.Nota) + '</span><span class="dt">' + kortDatum(o.Datum) + '</span></div></div>';
@@ -540,6 +564,12 @@ document.addEventListener('click', function (e) {
     case 'ls-kies': h.p.s = w; App.herteken(); break;
     case 'st-jaar': h.p.jaar = w; App.herteken(); break;
     case 'vk-oortjie': h.p.oortjie = w; App.herteken(); break;
+    case 'vlag-ophef': {
+      const o = Afgelei.get().diere[el.dataset.n];
+      const v = o && (o.eieVlae || []).find(function (x) { return x._r === Number(w); });
+      App.gaan('vorm', { tipe: 'vlag_ophef', vorm: { ry: Number(w), nommer: el.dataset.n, rede: v ? v.Rede : '', datum: vandag() } });
+      break;
+    }
     case 'ma-probleem': {
       const a = Afgelei.get();
       const lr = a.lam.find(function (o) { return gelyk(o['Lam Nommer'], el.dataset.n); });
@@ -557,6 +587,7 @@ document.addEventListener('click', function (e) {
     case 'siekte-wysig': App.gaan('vorm', { tipe: 'siekte', vorm: Vorms.begin('siekte', w) }); break;
     case 'vorm': App.gaan('vorm', { tipe: w, vorm: Vorms.begin(w, el.dataset.n) }); break;
     case 'filter': h.p.filter = w; App.herteken(); break;
+    case 'oud-filter': h.p.oud = w; App.herteken(); break;
     case 'kudde-filter': App.wortel('kudde'); App.huidig().p.filter = w === 'siek' ? 'Siek' : w; App.herteken(); break;
     case 'kies': Vorms.kies(h.p, el.dataset.veld, w); break;
     case 'stoor': Vorms.stoor(h.p); break;
