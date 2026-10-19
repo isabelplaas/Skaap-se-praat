@@ -275,6 +275,11 @@ function pasPlaaslikToe(data, op) {
         'Geboorte Datum': d.geboorte || '', 'Ouderdom': d.ouderdom || '', 'Herkoms': d.herkoms, 'Datum Bygevoeg': d.datum,
         'Verkoop Gereed': d.groep === 'Om te verkoop' ? (d.gereed || 'Nie gereed') : '' });
       break;
+    case 'skaap_wysig':
+      stelWaarde(data, 'Register', function (o) { return gelyk(o.Nommer, d.nommer); },
+        Object.assign({ 'Geslag': d.geslag, 'Groep': d.groep, 'Geboorte Datum': d.geboorte || '', 'Ouderdom': d.geboorte ? '' : (d.ouderdom === '' ? '' : d.ouderdom) },
+          d.groep === 'Om te verkoop' ? {} : { 'Verkoop Gereed': '' }));
+      break;
     case 'groep_skuif':
       stelWaarde(data, 'Register', function (o) {
         return (d.nommers || [d.nommer]).some(function (n) { return gelyk(o.Nommer, n); });

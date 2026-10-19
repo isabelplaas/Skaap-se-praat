@@ -52,7 +52,7 @@ const VORM_TITELS = { byvoeg: 'Skaap byvoeg', lam: 'Nuwe lam', spuit: 'Spuit', s
   uit: 'Dood of verkoop', verkoop: 'Verkoop', skuif: 'Skuif na ander groep', speen: 'Speen lam', gesond: 'Merk gesond',
   groepskuif: 'Skuif \'n groep', bestelling: 'Nuwe bestelling', bestelling_oop: 'Bestelling',
   produk: 'Produk byvoeg', siekte: 'Siekte-inligting', seisoen_nota: 'Nota oor die seisoen', skenking: 'Skenking',
-  skeer: 'Skeer', wolbaal: 'Wolbaal byvoeg', wol_stuur: 'Stuur wol na BKB', vlag: 'Vlag die skaap', vlag_ophef: 'Hef vlag op' };
+  skeer: 'Skeer', wolbaal: 'Wolbaal byvoeg', wol_stuur: 'Stuur wol na BKB', vlag: 'Vlag die skaap', vlag_ophef: 'Hef vlag op', wysig: 'Wysig skaap' };
 
 // Die gewone volgende groep vir elke groep.
 const VOLGENDE_GROEP = { 'Ooi Lam by MA': 'Gespeende Ooi Lam', 'Hammel Lam by MA': 'Gespeende Hammel Lam',
@@ -93,6 +93,9 @@ const Vorms = {
       case 'siek': return Object.assign(v, { wie: 'Een dier', nommer: d ? d.n : '', groepe: [], probleem: '', aksie: '', status: 'Siek', produk: '', dosis: '' });
       case 'skeer': return Object.assign(v, { groepe: [], aantal: '', nota: '' });
       case 'vlag': return Object.assign(v, { nommer: d ? d.n : '', keuse: '', rede: '' });
+      case 'wysig': return Object.assign(v, { nommer: d ? d.n : '', geslag: d ? d.geslag || 'Ooi' : 'Ooi', groep: d ? d.groep : '',
+        geboorte: d ? d.geboorte || '' : '', ouderdom: d && !d.geboorte && d.ouderdomJaar !== null && d.ouderdomJaar !== undefined ? String(d.ouderdomJaar) : '',
+        oud: d ? { geslag: d.geslag, groep: d.groep, geboorte: d.geboorte || '', ouderdom: d.ouderdomJaar } : {} });
       case 'wolbaal': {
         const nr = a.wol.reduce(function (m, o) { return Math.max(m, getal(o['Baal Nr'])); }, 0) + 1;
         return Object.assign(v, { tipe: 'Vag', ander: '', gewig: '', baal: String(nr), nota: '', reeks: true });
@@ -130,6 +133,7 @@ const Vorms = {
     p.fout = '';
     // Afhanklike velde
     if (p.tipe === 'byvoeg' && veld === 'geslag') v.groep = w === 'Ram' ? 'Ram' : w === 'Hammel' ? 'Gespeende Hammel Lam' : 'Groot Ooi';
+    if (p.tipe === 'wysig' && veld === 'geslag' && geslagVirGroep(v.groep) && geslagVirGroep(v.groep) !== w) v.groep = w === 'Ram' ? 'Ram' : w === 'Hammel' ? 'Gespeende Hammel Lam' : 'Groot Ooi';
     if (p.tipe === 'speen' && veld === 'geslag') v.groep = w === 'Hammel' ? 'Gespeende Hammel Lam' : w === 'Ram' ? 'Ram' : 'Gespeende Ooi Lam';
     if (p.tipe === 'spuit' && veld === 'program') { v.produk = ''; }
     this.verander(p, veld, w);
@@ -243,6 +247,15 @@ const Vorms = {
         return '';
       case 'vlag_ophef':
         return '';
+      case 'wysig': {
+        if (!bestaan(v.nommer) || a.diere[sleutelVan(v.nommer)].lam) return 'Kies \'n skaap wat in die Register is.';
+        if (!v.groep) return 'Kies \'n groep.';
+        if (!v.geboorte && v.ouderdom !== '' && !(syfer(v.ouderdom) >= 0)) return 'Ouderdom moet \'n getal wees.';
+        const o = v.oud;
+        const oudOud = o.ouderdom === null || o.ouderdom === undefined ? '' : String(o.ouderdom);
+        if (v.geslag === o.geslag && v.groep === o.groep && v.geboorte === o.geboorte && (v.geboorte || String(v.ouderdom) === oudOud)) return 'Niks is verander nie.';
+        return '';
+      }
       case 'skeer':
         if (!v.groepe.length) return 'Merk ten minste een groep.';
         if (v.aantal !== '' && !(syfer(v.aantal) >= 0)) return 'Aantal moet \'n getal wees.';
@@ -332,6 +345,12 @@ const Vorms = {
         App.terug();
         return;
       }
+      case 'wysig':
+        voegBewerkingBy('skaap_wysig', { nommer: n, geslag: v.geslag, groep: v.groep, geboorte: v.geboorte || '',
+          ouderdom: v.geboorte ? '' : (v.ouderdom === '' ? '' : syfer(v.ouderdom)) });
+        boodskap('Dankie! My besonderhede is reggemaak.');
+        App.terug();
+        return;
       case 'vlag_ophef':
         voegBewerkingBy('vlag_ophef', { ry: v.ry, nommer: v.nommer, datum: v.datum });
         boodskap('Vlag vir ' + v.nommer + ' is opgehef.');
@@ -474,6 +493,15 @@ Skerms.vorm = function (p) {
       lyf += datumVeld('datum', v.datum, v.herkoms === 'Gekoop' ? 'Datum gekoop' : 'Datum bygevoeg');
       lyf += datumVeld('geboorte', v.geboorte, 'Geboortedatum (as jy dit weet)');
       if (!v.geboorte) lyf += getalVeld('ouderdom', v.ouderdom, 'Of geskatte ouderdom', 'jaar', 'bv. 3');
+      break;
+
+    case 'wysig':
+      lyf += '<div class="inligting"><i class="ti ti-info-circle"></i><span>Maak reg wat die eerste keer verkeerd ingesit is. Die nommer self kan nie verander word nie.</span></div>';
+      lyf += etiket('Geslag') + kiesKnoppies('geslag', v.geslag, ['Ooi', 'Ram', 'Hammel']) + '</div>';
+      lyf += keuseVeld('groep', v.groep, 'Groep', ALLE_GROEPE.indexOf(v.groep) >= 0 || !v.groep ? ALLE_GROEPE : [v.groep].concat(ALLE_GROEPE));
+      lyf += datumVeld('geboorte', v.geboorte, 'Geboortedatum');
+      if (v.geboorte) lyf += '<div class="kies" style="margin-top:-6px;margin-bottom:12px"><button type="button" data-a="kies" data-veld="geboorte" data-w="">Geboortedatum onbekend – vee uit</button></div>';
+      else lyf += getalVeld('ouderdom', v.ouderdom, 'Geskatte ouderdom', 'jaar', 'bv. 3');
       break;
 
     case 'lam': {

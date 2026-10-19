@@ -401,6 +401,7 @@ Skerms.dier = function (p) {
     if (!d.lam && d.geslag === 'Ooi') snel.push(['lam', 'baby-carriage', 'Lam']);
     if (d.groep === 'Om te verkoop') snel.unshift(d.gereed === 'Gereed' ? ['nie-gereed', 'flag', 'Nie gereed'] : ['gereed', 'check', 'Gereed']);
     snel.push(['vlag', 'flag', 'Vlag']);
+    if (!d.lam) snel.push(['wysig', 'pencil', 'Wysig']);
     snel.push(['uit', 'door-exit', 'Dood/Verkoop']);
   } else snel.push(['nota', 'notes', 'Nota']);
 
@@ -509,7 +510,7 @@ Skerms.kalender = function () {
 };
 
 const BEWERKING_NAME = { skaap_byvoeg: 'Skaap bygevoeg', lam: 'Nuwe lam', spuit: 'Spuit', siek: 'Siek skaap', siek_status: 'Gesond gemerk',
-  weeg: 'Weeg', nota: 'Nota', bestelling: 'Bestelling', bestelling_status: 'Bestelling opgedateer', uit: 'Dood/Verkoop', verkoop: 'Verkoop', groep_skuif: 'Groep geskuif' };
+  weeg: 'Weeg', nota: 'Nota', bestelling: 'Bestelling', bestelling_status: 'Bestelling opgedateer', uit: 'Dood/Verkoop', verkoop: 'Verkoop', groep_skuif: 'Groep geskuif', skaap_wysig: 'Skaap gewysig' };
 
 function bewerkingTeks(op) {
   const d = op.data || {};
