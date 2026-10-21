@@ -98,7 +98,7 @@ const Vorms = {
         oud: d ? { geslag: d.geslag, groep: d.groep, geboorte: d.geboorte || '', ouderdom: d.ouderdomJaar } : {} });
       case 'wolbaal': {
         const nr = a.wol.reduce(function (m, o) { return Math.max(m, getal(o['Baal Nr'])); }, 0) + 1;
-        return Object.assign(v, { tipe: 'Vag', ander: '', gewig: '', baal: String(nr), nota: '', reeks: true });
+        return Object.assign(v, { tipe: 'AM', ander: '', gewig: '', baal: String(nr), nota: '', reeks: true });
       }
       case 'wol_stuur': return Object.assign(v, { gekies: a.wol.filter(function (o) { return !o['Gestuur na BKB'] && o._r > 0; }).map(function (o) { return String(o._r); }) });
       case 'weeg': return Object.assign(v, { nommer: d ? d.n : '', gewig: '', rede: d && d.lam ? 'Speen' : 'Gewone weging', reeks: !d });

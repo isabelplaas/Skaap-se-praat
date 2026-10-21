@@ -1,5 +1,5 @@
 /* Skaap se Praat – hou die app beskikbaar sonder sein */
-const WEERGAWE = 'ssp-v16';
+const WEERGAWE = 'ssp-v18';
 const LEER = ['./', 'index.html', 'app.css', 'data.js', 'demo.js', 'app.js', 'vorms.js', 'manifest.webmanifest',
   'ikoon.svg', 'ikoon-192.png', 'ikoon-512.png', 'ikone.js', 'bladsye.js'];
 

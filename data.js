@@ -12,7 +12,7 @@ const LAMGROEPE = ['Ooi Lam by MA', 'Hammel Lam by MA', 'Hans Lam'];
 // Virtuele groepe vir spuit en siek: die Om te verkoop-groep verdeel volgens gereed of nie.
 const VERKOOP_GROEPE = { 'Om te verkoop (gereed)': 'Gereed', 'Om te verkoop (nie gereed)': 'Nie gereed' };
 const SPUIT_GROEPE = GROEPE.concat(Object.keys(VERKOOP_GROEPE));
-const WOLTIPES = ['Vag', 'Pense', 'Stukke', 'Lokke', 'Lamwol', 'Kleurwol'];
+const WOLTIPES = ['AM', 'BM', 'AH', 'BH', 'CL', 'BP', 'LBP', 'L Lox', 'Lox 2', 'Lox 3', 'Resort', 'L Resort', 'TDR'];
 const PROGRAMME = ['Feb Spuit Program', 'Aug Spuit Program', 'Speen Spuit Program', 'Buite Program'];
 const KONDISIES = ['Mooi', 'Swak/Klein', 'Dood gebore', 'Aborteer'];
 const MAANDE = ['Jan', 'Feb', 'Mrt', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Des'];

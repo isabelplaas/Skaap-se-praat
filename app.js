@@ -445,7 +445,7 @@ Skerms.dier = function (p) {
   });
   html += afdeling('Spuit', spuit, function (o) {
     return '<div class="rek"><div class="bo"><b>' + esc(o.Produk) + '</b><span class="dt">' + mooiDatum(o.Datum) + '</span></div>' +
-      '<div class="s">' + esc([o.Program, o['Dosis (ml)'] !== '' && o['Dosis (ml)'] !== undefined ? syferTeks(o['Dosis (ml)']) + ' ml' : '', o.Nota].filter(Boolean).join(' · ')) + '</div></div>';
+      '<div class="s">' + esc([o.Program, o['Dosis (ml)'] !== '' && o['Dosis (ml)'] !== undefined ? syferTeks(o['Dosis (ml)']) + ' ml' : '', d.groep === 'Om te verkoop' ? o.Nota : String(o.Nota || '').replace(/\s*·?\s*Ook: .*$/, '')].filter(Boolean).join(' · ')) + '</div></div>';
   });
   html += afdeling('Siekte', siek, function (o) {
     const oop = o.Status === 'Siek' || o.Status === 'Onder behandeling';
