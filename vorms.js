@@ -371,8 +371,8 @@ const Vorms = {
       }
       case 'wol_stuur':
         voegBewerkingBy('wol_gestuur', { datum: v.datum, rye: v.gekies.map(Number) });
-        boodskap(v.gekies.length + (v.gekies.length === 1 ? ' baal' : ' bale') + ' as gestuur na BKB gemerk.');
-        App.terug();
+        boodskap(v.gekies.length + (v.gekies.length === 1 ? ' baal' : ' bale') + ' as gestuur na BKB gemerk. Hier is die afleweringsbewys.');
+        App.gaan('afleweringsbewys', { datum: v.datum, rye: v.gekies.map(Number) }, true);
         return;
       case 'weeg':
         voegBewerkingBy('weeg', { datum: v.datum, nommer: n, gewig: syfer(v.gewig), rede: v.rede });

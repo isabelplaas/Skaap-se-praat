@@ -430,6 +430,15 @@ Skerms.skeerblad = function (p) {
       (x.oopBale ? '<span class="pil oranje">' + x.oopBale + ' op plaas · ' + syferTeks(x.oopKg) + ' kg</span>' : '<span class="pil groen">Alles gestuur</span>') + '</div>';
   }).join('') : '<div class="leeg">Nog geen wolbale nie.</div>') + '</div>';
 
+  const stuurDatums = [];
+  a.wol.forEach(function (o) { const d = o['Gestuur na BKB']; if (d && stuurDatums.indexOf(d) < 0) stuurDatums.push(d); });
+  stuurDatums.sort().reverse();
+  if (stuurDatums.length) html += '<div class="titel">Afleweringsbewyse</div><div class="lys">' + stuurDatums.map(function (d) {
+    const b = a.wol.filter(function (o) { return o['Gestuur na BKB'] === d; });
+    return '<button class="lys-ry" data-a="bewys" data-w="' + esc(d) + '">' + ikoon('truck') + '<span class="hoof"><b>' + esc(mooiDatum(d)) + '</b><div class="s">' +
+      b.length + (b.length === 1 ? ' baal' : ' bale') + ' · ' + syferTeks(kg(b)) + ' kg</div></span><i class="ti ti-chevron-right"></i></button>';
+  }).join('') + '</div>';
+
   html += afdeling('Skeer', a.skeer, function (o) {
     return '<div class="rek"><div class="bo"><b>' + esc(o['Aantal geskeer'] !== '' ? o['Aantal geskeer'] + ' geskeer' : 'Geskeer') + '</b><span class="dt">' + mooiDatum(o.Datum) + '</span></div>' +
       '<div class="s">' + esc([o.Groepe, o.Nota].filter(Boolean).join(' · ')) + '</div></div>';
@@ -440,3 +449,57 @@ Skerms.skeerblad = function (p) {
   });
   return html + '</div>';
 };
+
+
+/* ---------- Afleweringsbewys vir wolbale (druk of stoor as PDF) ---------- */
+const BEWYS_VELDE = [['produsent', 'Produsent nr'], ['plaas', 'Naam / plaas'], ['bestuurder', 'Afgelewer deur (bestuurder)'], ['voertuig', 'Voertuig registrasie']];
+Skerms.afleweringsbewys = function (p) {
+  const a = Afgelei.get();
+  const bale = a.wol.filter(function (o) {
+    return p.rye && p.rye.length ? p.rye.indexOf(o._r) >= 0 : o['Gestuur na BKB'] === p.datum;
+  }).sort(function (x, y) { return getal(x['Baal Nr']) - getal(y['Baal Nr']); });
+  const totaal = bale.reduce(function (t, o) { return t + getal(o['Gewig (kg)']); }, 0);
+  const klasse = {};
+  bale.forEach(function (o) { const t = o['Tipe wol'] || '—'; klasse[t] = klasse[t] || { n: 0, kg: 0 }; klasse[t].n++; klasse[t].kg += getal(o['Gewig (kg)']); });
+  const w = function (k) { return Berg.lees('bewys_' + k, ''); };
+  const lyn = function (k) { return '<span class="bw-lyn" data-bewys-uit="' + k + '">' + esc(w(k) || '') + '</span>'; };
+
+  let html = '<div class="geen-druk">' + kop('Afleweringsbewys', 'Wolbale na BKB') + '</div><div class="inhoud">';
+  html += '<div class="geen-druk"><div class="inligting"><i class="ti ti-info-circle"></i><span>Vul jou besonderhede in (die app onthou dit), druk dan <b>Druk of stoor as PDF</b>. Laat BKB teken by ontvangs.</span></div>' +
+    BEWYS_VELDE.map(function (f) {
+      return '<div class="veld"><label for="bw-' + f[0] + '">' + f[1] + '</label><input class="inv" id="bw-' + f[0] + '" data-bewys="' + f[0] + '" autocomplete="off" value="' + esc(w(f[0])) + '"></div>';
+    }).join('') +
+    '<button class="knop" data-a="druk" style="margin:4px 0 8px"><i class="ti ti-printer"></i> Druk of stoor as PDF</button>' +
+    '<button class="knop sekondêr" data-a="deel-bewys" style="margin-bottom:16px"><i class="ti ti-share"></i> Deel as boodskap</button></div>';
+
+  html += '<div class="bewys">' +
+    '<div class="bw-kop"><div><div class="bw-titel">AFLEWERINGSBEWYS – WOLBALE</div><div class="bw-sub">Afgelewer by BKB</div></div>' +
+    '<div class="bw-dt">' + esc(langDatum(p.datum) || p.datum) + '</div></div>' +
+    '<table class="bw-inf"><tr><td>Produsent nr</td><td>' + lyn('produsent') + '</td></tr><tr><td>Naam / plaas</td><td>' + lyn('plaas') + '</td></tr>' +
+    '<tr><td>Afgelewer deur</td><td>' + lyn('bestuurder') + '</td></tr><tr><td>Voertuig</td><td>' + lyn('voertuig') + '</td></tr></table>' +
+    '<table class="bw-tab"><thead><tr><th>Baal nr</th><th>Klas</th><th class="r">Gewig (kg)</th><th class="m">Ontvang ✓</th></tr></thead><tbody>' +
+    (bale.length ? bale.map(function (o) {
+      return '<tr><td>' + esc(o['Baal Nr'] || '?') + '</td><td>' + esc(o['Tipe wol'] || '') + '</td><td class="r">' + syferTeks(getal(o['Gewig (kg)'])) + '</td><td class="m"></td></tr>';
+    }).join('') : '<tr><td colspan="4">Geen bale vir hierdie datum nie.</td></tr>') +
+    '</tbody><tfoot><tr><td colspan="2">Totaal: ' + bale.length + (bale.length === 1 ? ' baal' : ' bale') + '</td><td class="r">' + syferTeks(totaal) + '</td><td></td></tr></tfoot></table>' +
+    '<div class="bw-opsom"><b>Per klas:</b> ' + Object.keys(klasse).map(function (k) { return esc(k) + ' ' + klasse[k].n + ' (' + syferTeks(klasse[k].kg) + ' kg)'; }).join(' · ') + '</div>' +
+    '<div class="bw-teken">' +
+    '<div><div class="bw-th">Afgelewer deur</div><div class="bw-reel">Naam</div><div class="bw-reel">Handtekening</div><div class="bw-reel">Datum en tyd</div></div>' +
+    '<div><div class="bw-th">Ontvang deur (BKB)</div><div class="bw-reel">Naam</div><div class="bw-reel">Handtekening</div><div class="bw-reel">Datum en tyd</div><div class="bw-stempel">Stempel</div></div>' +
+    '</div><div class="bw-voet">Opgestel met Skaap se Praat · Opmerkings: ____________________________________________</div></div>';
+  return html + '</div>';
+};
+
+function bewysTeks(p) {
+  const a = Afgelei.get();
+  const bale = a.wol.filter(function (o) { return p.rye && p.rye.length ? p.rye.indexOf(o._r) >= 0 : o['Gestuur na BKB'] === p.datum; })
+    .sort(function (x, y) { return getal(x['Baal Nr']) - getal(y['Baal Nr']); });
+  const totaal = bale.reduce(function (t, o) { return t + getal(o['Gewig (kg)']); }, 0);
+  const w = function (k) { return Berg.lees('bewys_' + k, ''); };
+  return ['Afleweringsbewys – wolbale na BKB', 'Datum: ' + (langDatum(p.datum) || p.datum),
+    w('produsent') ? 'Produsent nr: ' + w('produsent') : '', w('plaas') ? 'Naam/plaas: ' + w('plaas') : '',
+    w('bestuurder') ? 'Afgelewer deur: ' + w('bestuurder') : '', w('voertuig') ? 'Voertuig: ' + w('voertuig') : '', '']
+    .filter(function (x, i) { return x !== '' || i === 6; })
+    .concat(bale.map(function (o) { return 'Baal ' + (o['Baal Nr'] || '?') + ' · ' + (o['Tipe wol'] || '') + ' · ' + syferTeks(getal(o['Gewig (kg)'])) + ' kg'; }))
+    .concat(['', 'Totaal: ' + bale.length + ' bale · ' + syferTeks(totaal) + ' kg']).join('\n');
+}

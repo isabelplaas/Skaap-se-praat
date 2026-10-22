@@ -555,6 +555,14 @@ document.addEventListener('click', function (e) {
     case 'terug': App.terug(); break;
     case 'wortel': App.wortel(w); break;
     case 'sinkNou': sinkroniseer(); break;
+    case 'bewys': App.gaan('afleweringsbewys', { datum: w }); break;
+    case 'druk': window.print(); break;
+    case 'deel-bewys': {
+      const t = bewysTeks(h.p);
+      if (navigator.share) navigator.share({ title: 'Afleweringsbewys wolbale', text: t }).catch(function () {});
+      else if (navigator.clipboard) navigator.clipboard.writeText(t).then(function () { boodskap('Gekopieer. Plak dit in WhatsApp of e-pos.'); });
+      break;
+    }
     case 'herinner-klaar': Berg.skryf('klaar_' + w, true); App.herteken(); break;
     case 'dier': App.gaan('dier', { n: w }); break;
     case 'gaan': App.gaan(w, el.dataset.p ? { program: el.dataset.p } : {}); break;
@@ -618,6 +626,11 @@ document.addEventListener('input', function (e) {
   const el = e.target;
   const h = App.huidig();
   if (el.id === 'v-sp_datum') { h.p.datum = el.value; return; }
+  if (el.dataset.bewys) {
+    Berg.skryf('bewys_' + el.dataset.bewys, el.value);
+    document.querySelectorAll('[data-bewys-uit="' + el.dataset.bewys + '"]').forEach(function (x) { x.textContent = el.value; });
+    return;
+  }
   if (el.dataset.a === 'siekte-soek') {
     h.p.q = el.value;
     clearTimeout(document._t);
